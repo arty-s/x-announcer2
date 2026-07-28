@@ -13,6 +13,7 @@
 #include "XPLMGraphics.h"
 
 #include "plugin/imgui_xp/xp_imgui_render.h"
+#include "plugin/ui/theme.h"
 #include "plugin/xa_log.h"
 
 namespace xa {
@@ -27,6 +28,8 @@ ImFontAtlas* sharedAtlas() {
 
 GLuint g_atlasTexture = 0;
 bool g_atlasBuilt = false;
+ImFont* g_smallFont = nullptr;
+ImFont* g_largeFont = nullptr;
 
 // A missing glyph degrades quietly - the character just becomes '?', the atlas
 // builds, nothing fails. So state it in the log instead of waiting for someone
@@ -154,9 +157,19 @@ bool XpImguiWindow::loadUiFont(const std::string& ttfPath, float sizePixels) {
         atlas->AddFontDefault();
         return false;
     }
-    log("font: loaded '%s' at %.0f px", ttfPath.c_str(), sizePixels);
+    // Same file, two more sizes. The atlas pays for each, which is why there are
+    // three and not a scale for every occasion.
+    g_smallFont = atlas->AddFontFromFileTTF(ttfPath.c_str(), sizePixels * 0.78f, &config,
+                                            ranges.Data);
+    g_largeFont = atlas->AddFontFromFileTTF(ttfPath.c_str(), sizePixels * 1.32f, &config,
+                                            ranges.Data);
+    log("font: loaded '%s' at %.0f / %.0f / %.0f px", ttfPath.c_str(), sizePixels * 0.78f,
+        sizePixels, sizePixels * 1.32f);
     return true;
 }
+
+ImFont* XpImguiWindow::smallFont() { return g_smallFont; }
+ImFont* XpImguiWindow::largeFont() { return g_largeFont; }
 
 XpImguiWindow::XpImguiWindow(int width, int height, std::string title)
     : title_(std::move(title)) {
@@ -170,6 +183,7 @@ XpImguiWindow::XpImguiWindow(int width, int height, std::string title)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     ImGui::StyleColorsDark();
+    ui::applyPanelTheme();
 
     int screenLeft = 0;
     int screenTop = 0;

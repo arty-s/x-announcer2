@@ -30,9 +30,15 @@ public:
     // what someone asking for a bigger scale wants.
     void resizeKeepingCorner(int width, int height);
 
-    // Loads the Cyrillic-capable UI font once, shared by every window.
-    // Safe to call more than once; returns false if the file is missing.
+    // Loads the Cyrillic-capable UI font once, shared by every window, in three
+    // sizes: the body size given, a smaller one for notes and section lettering,
+    // and a larger one for the few values that lead. One typeface, three sizes -
+    // 1.x had exactly one of each, which is why its hierarchy had to be carried
+    // by colour alone.
     static bool loadUiFont(const std::string& ttfPath, float sizePixels);
+
+    static ImFont* smallFont();
+    static ImFont* largeFont();
 
 protected:
     // Called inside NewFrame/Render with an ImGui window already open.

@@ -105,6 +105,7 @@ add_library(x_announcer2 MODULE
     src/plugin/imgui_xp/xp_imgui_window.cpp
     src/plugin/imgui_xp/xp_imgui_render.cpp
     src/plugin/ui/main_window.cpp
+    src/plugin/ui/theme.cpp
 )
 
 target_include_directories(x_announcer2 PRIVATE
