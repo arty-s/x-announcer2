@@ -1,0 +1,5 @@
+     0.0 phase CRUISE (loaded airborne)
+    51.0 reset PREFLIGHT (parked while the phase says airborne)
+    65.0 phase BOARDING (cabin ready)
+    65.5 play BoardingStarted (cabin ready)
+    74.0 play BoardingWelcome (boarding)

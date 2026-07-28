@@ -1,0 +1,100 @@
+# A complete short-haul flight in daylight with a full pack. This is the
+# reference flight: the same sequence 1.x's bench flies, so the two traces can
+# be compared directly.
+
+config door_calls=1 night_dim=1 boarding_music=1 boarding_repeat=300
+library BoardingStarted BoardingWelcome BoardingComplete ArmDoors
+library SafetyBriefing:45 CrewSeatsTakeoff CallCabinSecureTakeoff AfterTakeoff
+library TopOfClimbPilot FastenSeatbelt TopOfDescentPilot DescentSeatbelts
+library BeforeLanding CrewSeatsLanding CallCabinSecureLanding AfterLanding
+library DisarmDoors DisembarkStarted LandingGreat BoardingMusic:120
+
+# The aircraft publishes a seat belt sign and it is switched off.
+set hour=12 seatbelt=0
+
+# ---- boarding -------------------------------------------------------------
+set battery=1 nav=1
+advance 20
+expect phase BOARDING
+expect played BoardingStarted
+
+set beacon=1
+advance 6
+expect phase PUSHBACK
+expect played BoardingComplete
+
+# ---- pushback, taxi out ---------------------------------------------------
+set engines=2
+advance 200
+expect played ArmDoors
+expect played SafetyBriefing
+
+set gs_kt=15.6 taxi=1
+advance 120
+
+set strobe=1 landing=1
+advance 40
+expect phase TAKEOFF
+expect played CrewSeatsTakeoff
+
+# ---- climb ----------------------------------------------------------------
+set on_ground=0 agl_ft=656 alt_ft=2000 vs_fpm=2200 gs_kt=175
+advance 20
+set agl_ft=4265 alt_ft=5000
+advance 60
+expect phase CLIMB
+expect played AfterTakeoff
+expect played CallCabinSecureTakeoff
+
+set agl_ft=29527 alt_ft=30000 vs_fpm=100
+advance 60
+set vs_fpm=0 alt_ft=35000 agl_ft=34777
+advance 60
+expect phase CRUISE
+expect played TopOfClimbPilot
+
+# ---- seat belt sign in the cruise, smooth air -----------------------------
+set seatbelt=1
+advance 30
+expect played FastenSeatbelt
+expect not-played Turbulence
+set seatbelt=0
+advance 20
+
+# ---- descent --------------------------------------------------------------
+set vs_fpm=-1800 alt_ft=24000 agl_ft=22966
+advance 40
+expect played TopOfDescentPilot
+set alt_ft=9000 agl_ft=8530
+advance 60
+expect phase DESCENT
+expect played DescentSeatbelts
+expect not-played CabinDimLanding
+
+set alt_ft=4000 agl_ft=3937 vs_fpm=-800 landing=1
+advance 40
+expect played BeforeLanding
+set alt_ft=2500 agl_ft=2625
+advance 40
+expect phase APPROACH
+expect played CrewSeatsLanding
+
+# ---- touchdown and taxi in ------------------------------------------------
+set vs_fpm=-150
+advance 2
+set on_ground=1 agl_ft=0 alt_ft=500 vs_fpm=0 gs_kt=117
+advance 30
+set gs_kt=15.6
+advance 60
+expect phase TAXI_IN
+expect played AfterLanding
+expect played LandingGreat
+expect played CallCabinSecureLanding
+
+set gs_kt=0 engines=0 parkbrake=1
+advance 60
+expect played DisarmDoors
+set beacon=0
+advance 90
+expect phase DISEMBARK
+expect played DisembarkStarted

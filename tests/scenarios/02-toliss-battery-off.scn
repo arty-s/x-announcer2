@@ -1,0 +1,21 @@
+# The ToLiss case, caught live on 2026-07-28.
+#
+# Study-level aircraft run their own electrical system and never drive X-Plane's
+# generic battery dataref, so the battery reads OFF while the aeroplane is fully
+# powered up. Boarding must still start - the nav lights are what actually move.
+# If this scenario ever goes back to PREFLIGHT, the "aircraft is awake" test has
+# been narrowed back down to the battery and the bug is back.
+
+config auto_boarding=1
+library BoardingStarted BoardingWelcome
+
+set hour=10 battery=0 nav=1
+advance 20
+expect phase BOARDING
+expect played BoardingStarted
+
+# Same aeroplane, only the taxi light on: still awake.
+advance 5
+set nav=0 taxi=1
+advance 20
+expect phase BOARDING

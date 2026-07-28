@@ -1,0 +1,3 @@
+     0.0 phase CRUISE (loaded airborne)
+    30.0 phase DESCENT (descending)
+    30.5 play DescentSeatbelts (below 10000 ft)

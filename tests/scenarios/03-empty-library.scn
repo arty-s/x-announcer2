@@ -1,0 +1,54 @@
+# No sounds at all.
+#
+# The point is not silence, it is that the flight must still progress. Several
+# transitions are gated on an announcement having FINISHED - the briefing chain,
+# the door calls, disembarking. If a missing file failed to mark itself as
+# finished, the aeroplane would stick on the stand forever with no clue why.
+
+config door_calls=1
+library
+
+set hour=12 battery=1 nav=1
+advance 20
+expect phase BOARDING
+
+set beacon=1 engines=2
+advance 60
+expect phase PUSHBACK
+
+# Lining up does NOT move the phase here, and that is the ported behaviour, not
+# an oversight: TAKEOFF is entered only if the crew-seats call actually goes on
+# the air, and with no pack there is nothing to play. The rotation moves it.
+set strobe=1
+advance 20
+expect phase PUSHBACK
+
+set on_ground=0 agl_ft=5000 alt_ft=6000 vs_fpm=2000
+advance 30
+expect phase CLIMB
+
+set alt_ft=35000 agl_ft=34000 vs_fpm=0
+advance 60
+expect phase CRUISE
+
+set alt_ft=9000 agl_ft=8000 vs_fpm=-1200
+advance 30
+expect phase DESCENT
+
+set agl_ft=2000 alt_ft=2500 vs_fpm=-700
+advance 30
+expect phase APPROACH
+
+set on_ground=1 gs_kt=30 vs_fpm=0 agl_ft=0
+advance 30
+expect phase TAXI_IN
+
+set gs_kt=0 engines=0 parkbrake=1 beacon=0
+advance 60
+
+# KNOWN 1.x BEHAVIOUR, ported deliberately and worth a decision: DISEMBARK is
+# entered only if DisembarkStarted actually plays. A pack without that file
+# therefore parks the machine in TAXI_IN forever - and since the turnaround
+# reset lives in DISEMBARK, a second flight in the same session would start
+# with every announcement already marked as heard. See the note in README.
+expect phase TAXI_IN

@@ -1,0 +1,49 @@
+# A firm arrival at night: the cabin reacts to the touchdown, and the night
+# dimming calls fire on both ends of the flight.
+#
+# The touchdown rate is sampled at frame rate on purpose - by the time the 1 Hz
+# tick notices the wheels are down, the vertical speed is already zero. If that
+# sampling ever moves to the tick, this scenario stops seeing 620 fpm and the
+# reaction quietly disappears.
+
+config night_dim=1 landing_reaction=1
+library SafetyBriefing:20 CabinDimTakeoff CabinDimLanding DescentSeatbelts
+library CrewSeatsLanding CrewSeatsTakeoff AfterLanding LandingTerrible LandingGreat
+library BoardingStarted BoardingComplete ArmDoors DisarmDoors DisembarkStarted
+
+set hour=23 seatbelt=0
+set battery=1 nav=1
+advance 10
+set beacon=1 engines=2
+advance 120
+expect played CabinDimTakeoff
+
+set strobe=1
+advance 20
+expect phase TAKEOFF
+
+set on_ground=0 agl_ft=6000 alt_ft=7000 vs_fpm=2000 gs_kt=250
+advance 30
+expect phase CLIMB
+set alt_ft=33000 agl_ft=32000 vs_fpm=0
+advance 60
+expect phase CRUISE
+
+set alt_ft=9000 agl_ft=8000 vs_fpm=-1400
+advance 40
+expect phase DESCENT
+expect played DescentSeatbelts
+expect played CabinDimLanding
+
+set agl_ft=2000 alt_ft=2500 vs_fpm=-700
+advance 30
+expect phase APPROACH
+
+# Arriving fast and firm.
+set vs_fpm=-620
+advance 2
+set on_ground=1 agl_ft=0 vs_fpm=0 gs_kt=40
+advance 40
+expect phase TAXI_IN
+expect played LandingTerrible
+expect not-played LandingGreat

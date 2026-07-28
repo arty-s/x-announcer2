@@ -1,0 +1,7 @@
+     0.0 phase BOARDING (cabin ready)
+     0.5 play BoardingStarted (cabin ready)
+    10.0 phase PUSHBACK (beacon on)
+    10.5 play BoardingComplete (beacon on)
+    19.0 play ArmDoors (engines running)
+    32.0 play PreSafetyBriefing (taxi out)
+    53.0 play SafetyBriefing (taxi out)

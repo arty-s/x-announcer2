@@ -1,0 +1,23 @@
+# The plugin comes up with the aeroplane already in the air - a mid-flight
+# reload, or the sim started from a saved situation.
+#
+# It must jump straight to the cruise and it must NOT announce boarding, the
+# safety briefing or the after-takeoff PA to passengers who have been sitting
+# there for two hours.
+
+library BoardingStarted BoardingWelcome SafetyBriefing AfterTakeoff
+library DescentSeatbelts CrewSeatsLanding BeforeLanding AfterLanding
+
+set hour=14 seatbelt=0
+set on_ground=0 agl_ft=34000 alt_ft=35000 vs_fpm=0 gs_kt=450 engines=2
+advance 30
+expect phase CRUISE
+expect not-played BoardingStarted
+expect not-played BoardingWelcome
+expect not-played SafetyBriefing
+expect not-played AfterTakeoff
+
+set alt_ft=9000 agl_ft=8500 vs_fpm=-1500
+advance 40
+expect phase DESCENT
+expect played DescentSeatbelts

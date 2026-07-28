@@ -1,0 +1,28 @@
+# The sim can put the aeroplane somewhere the state machine cannot reach on its
+# own: teleport to a gate from the map, "start a flight here", a repaired crash.
+# Without the resync the announcer sits in the cruise forever and says nothing
+# for the rest of the session.
+#
+# The 20 second wait matters as much as the reset: a momentary touchdown must
+# not be mistaken for a teleport to the stand.
+
+library BoardingStarted BoardingWelcome
+
+set hour=9 seatbelt=0
+set on_ground=0 agl_ft=34000 alt_ft=35000 vs_fpm=0 gs_kt=450 engines=2
+advance 30
+expect phase CRUISE
+
+# Teleported to a stand: on the ground, engines off, stationary.
+set on_ground=1 agl_ft=0 alt_ft=100 gs_kt=0 engines=0
+advance 15
+expect phase CRUISE          # still inside the 20 s grace period
+
+advance 20
+expect phase PREFLIGHT
+
+# And from there the normal ground logic takes over again.
+set battery=1 nav=1
+advance 10
+expect phase BOARDING
+expect played BoardingStarted

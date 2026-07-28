@@ -1,0 +1,37 @@
+# Two independent guards that both live in the queue.
+#
+# 1. A pause must freeze BOTH clocks. If the wall clock kept running through a
+#    long pause, the announcement in progress would be considered finished and
+#    the sim would come out of the pause mid-sentence.
+# 2. The briefing chain: PreSafetyBriefing must finish before SafetyBriefing
+#    starts, and ArmDoors must finish before either. Each link is gated on the
+#    previous one having actually played to the end.
+
+config door_calls=1
+library ArmDoors:12 PreSafetyBriefing:20 SafetyBriefing:40
+library BoardingStarted BoardingComplete
+
+set hour=12
+set battery=1 nav=1
+advance 10
+set beacon=1 engines=2
+advance 5
+expect phase PUSHBACK
+
+# ArmDoors is on the air; nothing else may start yet.
+advance 6
+expect playing ArmDoors
+expect not-played PreSafetyBriefing
+
+# Freeze. Twelve seconds of pause must not retire a 12 second file.
+set paused=1
+advance 60
+expect playing ArmDoors
+
+set paused=0
+advance 20
+expect played PreSafetyBriefing
+expect not-played SafetyBriefing
+
+advance 30
+expect played SafetyBriefing

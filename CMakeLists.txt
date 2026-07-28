@@ -24,6 +24,41 @@ if(MSVC)
     target_compile_options(imgui PRIVATE /utf-8)
 endif()
 
+# --- The core ----------------------------------------------------------------
+# Not one line of XPLM, FMOD, filesystem or networking lives in here. That is
+# what lets the bench fly complete flights in milliseconds without X-Plane, and
+# what lets the same logic be compared against 1.x scenario by scenario.
+add_library(xa_core STATIC
+    src/core/engine.cpp
+)
+target_include_directories(xa_core PUBLIC src)
+if(MSVC)
+    target_compile_options(xa_core PRIVATE /utf-8 /W4 /permissive-)
+else()
+    target_compile_options(xa_core PRIVATE -Wall -Wextra -fPIC)
+endif()
+
+# --- The offline bench -------------------------------------------------------
+add_executable(xa_test
+    tests/main.cpp
+    tests/scenario.cpp
+)
+target_link_libraries(xa_test PRIVATE xa_core)
+target_include_directories(xa_test PRIVATE tests)
+target_compile_definitions(xa_test PRIVATE
+    XA_SCENARIO_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/scenarios"
+)
+if(MSVC)
+    target_compile_options(xa_test PRIVATE /utf-8 /W4 /permissive-)
+    set_property(TARGET xa_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    set_property(TARGET xa_core PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+else()
+    target_compile_options(xa_test PRIVATE -Wall -Wextra)
+endif()
+
+enable_testing()
+add_test(NAME scenarios COMMAND xa_test)
+
 # --- The plugin --------------------------------------------------------------
 add_library(x_announcer2 MODULE
     src/plugin/main.cpp
@@ -40,7 +75,7 @@ target_include_directories(x_announcer2 PRIVATE
     "${XA_SDK}/CHeaders/Widgets"
 )
 
-target_link_libraries(x_announcer2 PRIVATE imgui)
+target_link_libraries(x_announcer2 PRIVATE imgui xa_core)
 
 # X-Plane 12.04+ (XPLM400 is what XPLMSound lives behind).
 target_compile_definitions(x_announcer2 PRIVATE

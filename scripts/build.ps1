@@ -34,9 +34,11 @@ New-Item -ItemType Directory -Force -Path $build | Out-Null
 $configure = "`"$cmake`" -G Ninja -DCMAKE_MAKE_PROGRAM=`"$ninja`" -DCMAKE_BUILD_TYPE=$Config -S `"$root`" -B `"$build`""
 $compile   = "`"$cmake`" --build `"$build`""
 
-# VSCMD_SKIP_SENDTELEMETRY stops vcvars' telemetry step from shelling out to a
-# vswhere it cannot find, which otherwise prints a bogus error on every build.
-& cmd.exe /c "set VSCMD_SKIP_SENDTELEMETRY=1&& call `"$vcvars`" >nul && $configure && $compile"
+# One of vcvars' sub-scripts calls `vswhere` unqualified, so without the
+# Installer directory on PATH every build prints a bogus "not recognized" error.
+# Noise in build output is how real errors get overlooked, so fix the cause.
+$installerDir = Split-Path -Parent $vswhere
+& cmd.exe /c "set `"PATH=%PATH%;$installerDir`" && set VSCMD_SKIP_SENDTELEMETRY=1 && call `"$vcvars`" >nul && $configure && $compile"
 if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
 
 $staged = Join-Path $build 'x_announcer2'

@@ -1,0 +1,41 @@
+# Two things at once, because they interact.
+#
+# 1. Turbulence: the seat belt sign coming on after a rough patch says something
+#    different from the sign coming on in smooth air. The peak is sampled per
+#    frame from the normal load factor and reset once used.
+# 2. Time acceleration: phases run on simulator time, announcements on wall
+#    time. At 4x the flight rushes past but the sentences must still take as
+#    long as they take - timing them on sim time cuts them off mid-word.
+
+library FastenSeatbelt:30 Turbulence:30 AfterTakeoff CrewSeatsTakeoff
+library TopOfClimbPilot SafetyBriefing:20 BoardingStarted BoardingComplete ArmDoors
+
+set hour=12 seatbelt=0
+set battery=1 nav=1
+advance 10
+set beacon=1 engines=2 strobe=1
+advance 60
+set on_ground=0 agl_ft=8000 alt_ft=9000 vs_fpm=2000 gs_kt=250
+advance 30
+expect phase CLIMB
+set alt_ft=35000 agl_ft=34000 vs_fpm=0
+advance 60
+expect phase CRUISE
+
+# A rough patch: g swings well past the 0.35 threshold.
+set g=1.6
+advance 10
+set g=1.0
+
+# Sign on -> the turbulence line, not the routine one.
+set seatbelt=1
+advance 5 rate=4
+expect played Turbulence
+expect not-played FastenSeatbelt
+
+# The point of the 4x run: sixty seconds of simulator time have gone by, but
+# only fifteen wall seconds, so a thirty second announcement is still speaking.
+# Time it on sim time instead and it would have been cut off mid-word.
+set seatbelt=0
+advance 10 rate=4
+expect playing Turbulence

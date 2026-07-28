@@ -1,0 +1,8 @@
+     0.0 phase BOARDING (cabin ready)
+    20.0 phase PUSHBACK (beacon on)
+   100.0 phase TAKEOFF (airborne)
+   100.0 phase CLIMB (airborne)
+   156.0 phase CRUISE (levelled off)
+   190.0 phase DESCENT (descending)
+   220.0 phase APPROACH (approach)
+   250.0 phase TAXI_IN (vacated)
