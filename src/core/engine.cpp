@@ -24,6 +24,12 @@ const std::map<std::string, double>& eventTtl() {
 }
 
 std::string formatFeet(double v) {
+    // A vertical speed of -0.4 fpm printed as "-0", which reads as a value the
+    // sign of which someone is meant to act on. Anything that rounds to zero is
+    // zero, and zero has no sign.
+    if (v > -0.5 && v < 0.5) {
+        v = 0.0;
+    }
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%.0f", v);
     return buf;
