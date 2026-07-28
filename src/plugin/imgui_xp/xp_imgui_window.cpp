@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 
 #if IBM
 #include <windows.h>
@@ -27,6 +28,40 @@ ImFontAtlas* sharedAtlas() {
 GLuint g_atlasTexture = 0;
 bool g_atlasBuilt = false;
 
+// A missing glyph degrades quietly - the character just becomes '?', the atlas
+// builds, nothing fails. So state it in the log instead of waiting for someone
+// to notice on screen.
+void reportMissingGlyphs() {
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.Fonts->Fonts.empty()) {
+        return;
+    }
+    ImFont* font = io.Fonts->Fonts[0];
+    static const ImWchar kProbe[] = {
+        0x0401, 0x0451,          // Ё ё
+        0x00AB, 0x00BB,          // « »
+        0x2013, 0x2014,          // – —
+        0x2026, 0x2116, 0x00B0,  // … № °
+        0x2192,                  // →
+        0,
+    };
+
+    std::string missing;
+    for (const ImWchar* cp = kProbe; *cp != 0; ++cp) {
+        if (font->FindGlyphNoFallback(*cp) == nullptr) {
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "U+%04X ", static_cast<unsigned>(*cp));
+            missing += buf;
+        }
+    }
+    if (missing.empty()) {
+        log("font: glyph probe OK");
+    } else {
+        log("font: MISSING GLYPHS %s- these render as '?'. Widen the ranges in "
+            "loadUiFont().", missing.c_str());
+    }
+}
+
 // The atlas can only be uploaded from inside a draw callback - that is the one
 // place X-Plane guarantees a live GL context.
 void ensureAtlasUploaded() {
@@ -49,6 +84,7 @@ void ensureAtlasUploaded() {
     atlas->SetTexID(static_cast<ImTextureID>(g_atlasTexture));
     g_atlasBuilt = true;
     log("font atlas: %dx%d, GL texture %u", width, height, g_atlasTexture);
+    reportMissingGlyphs();
 }
 
 double nowSeconds() {
@@ -81,10 +117,21 @@ ImGuiKey mapVirtualKey(char virtualKey) {
 bool XpImguiWindow::loadUiFont(const std::string& ttfPath, float sizePixels) {
     ImFontAtlas* atlas = sharedAtlas();
 
+    // Cyrillic alone is not enough: Russian prose leans on the em dash, and a
+    // codepoint outside the ranges silently renders as '?'. Nothing warns you -
+    // this exact hole shipped in the first build and only a human eye caught it.
+    static const ImWchar kPunctuation[] = {
+        0x2010, 0x2027,  // dashes, quotation marks, ellipsis
+        0x2030, 0x203A,  // per mille, single guillemets
+        0x2116, 0x2116,  // numero sign
+        0x2190, 0x2193,  // arrows
+        0,
+    };
+
     ImFontGlyphRangesBuilder builder;
     builder.AddRanges(atlas->GetGlyphRangesCyrillic());
+    builder.AddRanges(kPunctuation);
     builder.AddChar(0x00B0);  // degree sign, used all over the flight readouts
-    builder.AddChar(0x2192);  // arrow, for route lines
     static ImVector<ImWchar> ranges;
     ranges.clear();
     builder.BuildRanges(&ranges);

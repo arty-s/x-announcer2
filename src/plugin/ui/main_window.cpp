@@ -33,7 +33,10 @@ void MainWindow::buildUi() {
     ++frames_;
 
     ImGui::TextUnformatted("Каркас работает.");
+    // Every character here has burned someone once. If any of them shows up as
+    // '?', the glyph ranges in loadUiFont() lost a block.
     ImGui::TextUnformatted("Проверка кириллицы: Ёжик, объявление, «ёлки» — 0123456789");
+    ImGui::TextUnformatted("Проверка пунктуации: тире — и – , многоточие… , № 5 , 12 ° , A → B");
     ImGui::Separator();
 
     int xplaneVersion = 0;
