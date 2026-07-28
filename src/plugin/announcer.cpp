@@ -50,19 +50,15 @@ Announcer::~Announcer() {
     }
 }
 
-std::vector<std::string> Announcer::libraryGuesses() const {
-    // Where an MSFS Universal Announcer library usually ends up, same list as
-    // 1.x. Only consulted when the configured folder holds no packs at all.
-    char systemPath[1024] = {0};
-    XPLMGetSystemPath(systemPath);
-    std::vector<std::string> guesses = {R"(D:\UA_Sounds)", R"(C:\UA_Sounds)", R"(E:\UA_Sounds)"};
-    if (systemPath[0] != '\0') {
-        guesses.push_back(std::string(systemPath) + "UA_Sounds");
-    }
-    if (!pluginDir().empty()) {
-        guesses.push_back(pluginDir() + "/Sounds");
-    }
-    return guesses;
+std::string Announcer::defaultLibraryDir() const {
+    // Beside the plugin, with a name that says what goes in it. 1.x went hunting
+    // for D:\UA_Sounds and a couple of other drives - which was one person's
+    // folder name baked into everybody's install.
+    return pluginDir().empty() ? std::string("Sound_packs") : pluginDir() + "/Sound_packs";
+}
+
+std::string Announcer::libraryDir() const {
+    return settings_.library.empty() ? defaultLibraryDir() : settings_.library;
 }
 
 void Announcer::loadSettings() {
@@ -138,26 +134,24 @@ void Announcer::settingsChanged(bool rescanLibraryToo) {
 }
 
 void Announcer::rescanLibrary() {
-    if (!settings_.library.empty()) {
-        library_.scan(settings_.library, settings_.language);
-    }
-    if (library_.packs().empty() && settings_.autoFind) {
-        for (const std::string& guess : libraryGuesses()) {
-            std::error_code ec;
-            if (!fs::is_directory(guess, ec)) {
-                continue;
-            }
-            if (library_.scan(guess, settings_.language) > 0) {
-                log("settings: found a sound library at '%s' - remembering it", guess.c_str());
-                settings_.library = guess;
-                saveSettings();
-                break;
-            }
+    const std::string root = libraryDir();
+    std::error_code ec;
+    if (settings_.library.empty() && !fs::is_directory(root, ec)) {
+        // Created rather than merely expected: an empty folder that exists is an
+        // instruction ("put packs here"), one that does not is a dead end.
+        fs::create_directories(root, ec);
+        if (ec) {
+            log("library: cannot create '%s' (%s)", root.c_str(), ec.message().c_str());
+        } else {
+            log("library: created '%s' for your sound packs", root.c_str());
         }
     }
+
+    library_.scan(root, settings_.language);
     if (library_.packs().empty()) {
-        log("library: no packs anywhere - set 'library' in config.ini to the folder "
-            "that holds them");
+        log("library: no packs in '%s' - put one folder per airline there, or point "
+            "'library' in config.ini somewhere else",
+            root.c_str());
     }
 }
 

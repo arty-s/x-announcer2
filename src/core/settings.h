@@ -18,11 +18,15 @@
 namespace xa::core {
 
 struct Settings {
-    // Where the packs are. Empty means "look in the usual places", which is
-    // what autoFind then does.
+    // Where the sound packs are. Empty means the Sound_packs folder beside the
+    // plugin, which is where a new user is meant to put them - and staying empty
+    // keeps that working after the plugin folder is moved or copied.
+    //
+    // 1.x had an auto_find switch that hunted for D:\UA_Sounds and friends. That
+    // was one person's folder name written into everybody's plugin; the standard
+    // folder replaces it.
     std::string library;
     std::string language = "en-us";
-    bool autoFind = true;
 
     std::string airlineMode = "auto";  // auto | manual
     std::string airlineManual = "Default";

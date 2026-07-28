@@ -393,12 +393,22 @@ void MainWindow::drawSettingsTab() {
     {
         // Committed when the field loses focus, never per keystroke: rescanning
         // the disk after every letter of a path would be both slow and wrong.
-        label("Папка с паками");
+        label("Папка со звуками");
         ImGui::InputText("##library", libraryBuffer_, sizeof(libraryBuffer_));
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             settings.library = libraryBuffer_;
             announcer_->settingsChanged(true);
         }
+        ImGui::PushTextWrapPos(0.0f);
+        if (settings.library.empty()) {
+            ImGui::TextDisabled("  Пусто — звуки берутся из папки рядом с плагином:");
+        } else {
+            ImGui::TextDisabled("  Читается:");
+        }
+        ImGui::TextDisabled("  %s", announcer_->libraryDir().c_str());
+        ImGui::TextDisabled("  Внутри — по папке на авиакомпанию (SBI, AFL, DLH…), "
+                            "как у MSFS Universal Announcer.");
+        ImGui::PopTextWrapPos();
         label("Язык внутри пака");
         ImGui::InputText("##language", languageBuffer_, sizeof(languageBuffer_));
         if (ImGui::IsItemDeactivatedAfterEdit()) {
@@ -407,9 +417,6 @@ void MainWindow::drawSettingsTab() {
         }
         note("Подпапка вроде en-us или ru. Если в паке она одна, берётся она "
              "независимо от этой строки.");
-        if (ImGui::Checkbox("Искать папку UA_Sounds самому", &settings.autoFind)) {
-            announcer_->settingsChanged();
-        }
     }
 
     section("ПРОЧЕЕ");

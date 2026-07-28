@@ -94,7 +94,7 @@ void runSettingsChecks(int* checks, int* failed) {
                   again.musicVolume == defaults.musicVolume && again.duck == defaults.duck &&
                   again.seatbeltDref == defaults.seatbeltDref &&
                   again.windowScale == defaults.windowScale &&
-                  again.panelOpen == defaults.panelOpen && again.autoFind == defaults.autoFind,
+                  again.panelOpen == defaults.panelOpen,
               "defaults survive write then read");
         check(again.flight.enabled == defaults.flight.enabled &&
                   again.flight.boardingMusic == defaults.flight.boardingMusic &&
@@ -114,9 +114,9 @@ void runSettingsChecks(int* checks, int* failed) {
     // comparison or - worse - be adopted by it as the new truth.
     {
         const core::Settings s;
-        check(s.language == "en-us" && s.airlineMode == "auto" && s.airlineManual == "Default" &&
-                  s.autoFind,
+        check(s.language == "en-us" && s.airlineMode == "auto" && s.airlineManual == "Default",
               "library defaults match 1.x");
+        check(s.library.empty(), "the sound folder defaults to the standard one, not a guess");
         check(s.volume == 0.85 && s.musicVolume == 0.35 && s.duck == 0.25 && s.windowScale == 1.0,
               "volume defaults match 1.x");
         check(!s.panelOpen, "the panel does not open itself on a fresh install");
@@ -131,9 +131,15 @@ void runSettingsChecks(int* checks, int* failed) {
     {
         std::vector<std::string> problems;
         const core::Settings s = core::parseSettings(kFileFrom1x, &problems);
-        check(problems.empty(), "a 1.x file reads without complaint");
-        check(s.library == R"(D:\UA_Sounds)" && s.language == "ru" && !s.autoFind,
-              "library, language and auto_find come across");
+        // One note, and only one: auto_find no longer exists. Everything else in
+        // a 1.x file still means what it meant.
+        check(problems.size() == 1 && mentions(problems, "auto_find"),
+              "a 1.x file reads with a single note, about the dropped auto_find");
+        check(s.library == R"(D:\UA_Sounds)" && s.language == "ru",
+              "library and language come across");
+        // It must not survive as an unknown key either, or a dead switch would
+        // sit in the file looking like it still does something.
+        check(s.unknown.count("auto_find") == 0, "and auto_find does not linger in the file");
         check(s.airlineMode == "manual" && s.airlineManual == "DLH" && !s.autoAirline(),
               "manual airline mode comes across");
         check(s.announceBus == "ui" && s.musicBus == "com1", "bus names come across");

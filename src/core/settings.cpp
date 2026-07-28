@@ -120,7 +120,8 @@ struct Help {
 // is Russian too now (v2 has a real font), but the file has to explain itself
 // on its own - it is read while X-Plane is not running.
 const Help kHelp[] = {
-    {"library", "папка со звуковыми паками (папка на авиакомпанию, как у MSFS Universal Announcer)"},
+    {"library", "папка со звуками: внутри по папке на авиакомпанию, как у MSFS Universal "
+                "Announcer. Пусто - берётся Sound_packs рядом с плагином"},
     {"language", "языковая подпапка внутри пака, если она есть: en-us, de-de, ru"},
     {"airline_mode", "auto - определять авиакомпанию по ливрее и борту, manual - брать airline_manual"},
     {"airline_manual", "код ICAO пака, который использовать принудительно"},
@@ -141,7 +142,6 @@ const Help kHelp[] = {
     {"seatbelt_dref", "свой датареф табло ремней; пусто - искать автоматически"},
     {"window_scale", "масштаб текста в окне, 1.0 - обычный; больше для VR"},
     {"panel_open", "было ли окно плагина открыто при выходе; так оно и откроется в следующий раз"},
-    {"auto_find", "искать готовую папку UA_Sounds, если в library паков не нашлось"},
     {"music_max_loops", "сколько раз зацикливать фоновый трек"},
 };
 
@@ -192,7 +192,11 @@ Settings parseSettings(const std::string& text, std::vector<std::string>* proble
         } else if (key == "language") {
             s.language = value;
         } else if (key == "auto_find") {
-            parseBool(key, value, &s.autoFind, problems);
+            // Dropped, not renamed. Saying so and letting it fall out of the
+            // file on the next write beats keeping it as an unknown key that
+            // looks like it still does something.
+            complain(problems, "auto_find: больше не используется - пустой library "
+                               "означает папку Sound_packs рядом с плагином");
         } else if (key == "airline_mode") {
             parseChoice(key, value, {"auto", "manual"}, &s.airlineMode, problems);
         } else if (key == "airline_manual") {
@@ -269,7 +273,6 @@ std::string writeSettings(const Settings& s) {
         {"seatbelt_dref", s.seatbeltDref},
         {"window_scale", number(s.windowScale)},
         {"panel_open", boolean(s.panelOpen)},
-        {"auto_find", boolean(s.autoFind)},
         {"music_max_loops", number(static_cast<double>(s.flight.musicMaxLoops))},
     };
 

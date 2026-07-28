@@ -64,9 +64,14 @@ public:
     // button loses the change when the simulator goes down.
     void settingsChanged(bool rescanLibraryToo = false);
 
-    // Scans the library folder named in the settings, looking in the usual
-    // places when it holds no packs and auto_find allows it.
+    // Scans the sound folder: the one named in the settings, or the standard
+    // Sound_packs folder beside the plugin when that is left empty.
     void rescanLibrary();
+
+    // The folder actually being read, and the standard one, for the panel to
+    // show. Empty settings must still be able to say where the sounds go.
+    std::string libraryDir() const;
+    std::string defaultLibraryDir() const;
 
     // Points the library at the airline we detected, or at the pack the user
     // pinned by hand when airline_mode is manual.
@@ -74,7 +79,6 @@ public:
 
 private:
     void execute(const core::Intent& intent);
-    std::vector<std::string> libraryGuesses() const;
 
     core::Settings settings_;
     SimState sim_;

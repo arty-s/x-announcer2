@@ -28,6 +28,13 @@ DEFAULT_XA_TEST = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(_
 # to-do list - but they are printed every run so the list cannot be forgotten.
 NOT_PORTED = {"simbrief_id", "widget", "widget_mode", "widget_opacity", "widget_x", "widget_y"}
 
+# Keys 1.x has that v2 deliberately does NOT have.
+DROPPED = {
+    "auto_find": "hunted for D:\\UA_Sounds and two other drives - one person's "
+                 "folder name baked into everybody's install. v2 uses the "
+                 "Sound_packs folder beside the plugin when library is empty",
+}
+
 # Differences that are meant. Anything not named here has to match exactly.
 # Keys v2 has and 1.x never needed.
 V2_ONLY = {
@@ -40,7 +47,8 @@ DELIBERATE = {
                  "master bus, so v2 uses the SDK's exterior - the bus music "
                  "already played on before the file existed",
     "library": "1.x defaults to a Sounds folder beside the script; v2 leaves it "
-               "empty and lets auto_find look, writing back what it found",
+               "empty, which means the Sound_packs folder beside the plugin - so "
+               "the setting keeps working when the plugin folder is moved",
 }
 
 
@@ -106,6 +114,9 @@ def main() -> int:
     for key, want in sorted(one.items()):
         if key in NOT_PORTED:
             continue
+        if key in DROPPED:
+            print(f"  - {key}: dropped on purpose - {DROPPED[key]}")
+            continue
         if key not in two:
             problems.append(f"  {key}: 1.x has it ({want!r}), v2 does not")
             continue
@@ -135,7 +146,8 @@ def main() -> int:
         return 1
     compared = len(set(one) & set(two)) - len(DELIBERATE)
     print(f"every shared default matches ({compared} keys compared, "
-          f"{len(DELIBERATE)} deliberate differences, {len(missing)} not ported yet)")
+          f"{len(DELIBERATE)} deliberate differences, {len(DROPPED)} dropped, "
+          f"{len(missing)} not ported yet)")
     return 0
 
 
