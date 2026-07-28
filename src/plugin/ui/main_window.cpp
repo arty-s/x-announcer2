@@ -298,9 +298,12 @@ void MainWindow::drawSettingsTab() {
     if (ImGui::Button("Сохранить сейчас")) {
         announcer_->saveSettings();
     }
-    ImGui::SameLine();
-    ImGui::TextDisabled("правки сохраняются сами через пару секунд");
+    // Wrapped, both of them: the path is long, the window is narrow, and a line
+    // running off the edge is the same defect the log tab just had fixed.
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("Правки сохраняются сами через пару секунд.");
     ImGui::TextDisabled("%s", configPath().c_str());
+    ImGui::PopTextWrapPos();
 
     // Everything below writes straight into the live settings and takes effect
     // at once; the file follows a couple of seconds later. There is no Apply
@@ -436,6 +439,15 @@ void MainWindow::drawSettingsTab() {
             settings.windowScale = scale;
             announcer_->settingsChanged();
         }
+        // Getting back to 1.00 by dragging is fiddly, and this is the one
+        // setting whose wrong value makes the panel harder to fix from inside.
+        ImGui::SameLine();
+        ImGui::BeginDisabled(settings.windowScale == 1.0);
+        if (ImGui::Button("Сбросить")) {
+            settings.windowScale = 1.0;
+            announcer_->settingsChanged();
+        }
+        ImGui::EndDisabled();
     }
 
     ImGui::Dummy(ImVec2(0.0f, 8.0f));

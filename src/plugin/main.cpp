@@ -39,6 +39,9 @@ XPLMMenuID g_menu = nullptr;
 int g_menuToggleIndex = -1;
 XPLMCommandRef g_toggleCommand = nullptr;
 bool g_fuseBlown = false;
+// Set while X-Plane is putting the plugin away. Hiding the window then is our
+// doing, not the user's, and must not be written down as "they closed it".
+bool g_shuttingDown = false;
 
 // One counter PER call site, never a shared one. 1.x learned this the hard way:
 // with a single counter the 30 Hz frame callback zeroed it on every successful
@@ -93,6 +96,22 @@ void syncMenuMark() {
                       visible ? xplm_Menu_Checked : xplm_Menu_Unchecked);
 }
 
+// Watches what the window actually is, rather than what we last told it to be.
+// The close button is the reason: X-Plane hides the window itself and the plugin
+// is never told, so a panel closed that way would come back on the next load.
+void rememberWindowState() {
+    if (!g_window || !g_announcer || g_shuttingDown) {
+        return;
+    }
+    const bool visible = g_window->isVisible();
+    if (visible == g_announcer->settings().panelOpen) {
+        return;
+    }
+    g_announcer->settings().panelOpen = visible;
+    g_announcer->settingsChanged();
+    syncMenuMark();
+}
+
 // Every frame. The whole plugin is driven from here: read the sim, let the core
 // decide, carry out what it decided. It is wrapped like everything else - an
 // exception escaping a flight loop takes X-Plane with it.
@@ -101,6 +120,7 @@ float flightLoopCb(float, float, int, void*) {
         if (g_announcer) {
             g_announcer->frame();
         }
+        rememberWindowState();
     });
     return -1.0f;  // again next frame
 }
@@ -111,12 +131,10 @@ void toggleWindow() {
     }
     g_window->setVisible(!g_window->isVisible());
     syncMenuMark();
-    // Remembered, so the panel comes back the way it was left instead of
-    // deciding for the user on every load.
-    if (g_announcer) {
-        g_announcer->settings().panelOpen = g_window->isVisible();
-        g_announcer->settingsChanged();
-    }
+    // The setting itself is updated by rememberWindowState(), which also catches
+    // the close button - X-Plane hides a decorated window on its own, without
+    // telling the plugin, so anything that only listens to the menu learns about
+    // half the closes. 1.x lost a release to exactly this.
 }
 
 void menuHandler(void* /*menuRef*/, void* itemRef) {
@@ -191,6 +209,7 @@ PLUGIN_API void XPluginStop(void) {
 }
 
 PLUGIN_API int XPluginEnable(void) {
+    g_shuttingDown = false;
     guarded(g_fuseEnable, [] {
         if (!g_window) {
             g_window = std::make_unique<xa::MainWindow>(g_announcer.get());
@@ -207,6 +226,10 @@ PLUGIN_API int XPluginEnable(void) {
 }
 
 PLUGIN_API void XPluginDisable(void) {
+    // Hiding the window here is X-Plane putting the plugin away, not the user
+    // closing the panel; without this flag the setting would be overwritten with
+    // "closed" on every shutdown.
+    g_shuttingDown = true;
     if (g_window) {
         g_window->setVisible(false);
     }
