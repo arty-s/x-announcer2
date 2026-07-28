@@ -8,7 +8,6 @@
 #include "plugin/announcer.h"
 #include "plugin/ui/theme.h"
 #include "plugin/xa_log.h"
-#include "plugin/xa_paths.h"
 
 namespace xa {
 namespace {
@@ -293,31 +292,13 @@ void MainWindow::drawLibraryTab() {
 void MainWindow::drawSettingsTab() {
     core::Settings& settings = announcer_->settings();
 
-    // The file lives at the TOP, not buried under the last section. It holds the
-    // settings this build has no controls for yet, and it is where a mistyped
-    // value gets explained - and a button nobody can find is a button that does
-    // not exist, which is exactly what the first acceptance run said about it.
-    if (ImGui::Button("Перечитать файл")) {
-        announcer_->loadSettings();
-        announcer_->applySettings();
-        announcer_->rescanLibrary();
-        syncTextBuffers();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Сохранить сейчас")) {
-        announcer_->saveSettings();
-    }
-    // Wrapped, both of them: the path is long, the window is narrow, and a line
-    // running off the edge is the same defect the log tab just had fixed.
-    ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextDisabled("Правки сохраняются сами через пару секунд.");
-    ImGui::TextDisabled("%s", configPath().c_str());
-    ImGui::PopTextWrapPos();
-
-    // Everything below writes straight into the live settings and takes effect
-    // at once; the file follows a couple of seconds later. There is no Apply
-    // button on purpose - a cabin announcement you cannot hear the effect of is
-    // a setting you cannot judge.
+    // No file controls here, and no path. Settings apply as they are touched and
+    // are written by themselves; buttons for saving and re-reading were solving
+    // a problem the user does not have, and the path is in the log at start-up
+    // for the one time a year somebody needs it.
+    //
+    // There is no Apply button either, on purpose - a cabin announcement you
+    // cannot hear the effect of is a setting you cannot judge.
     section("ЗВУК");
     {
         float value = static_cast<float>(settings.volume);
@@ -466,8 +447,6 @@ void MainWindow::drawSettingsTab() {
         ImGui::EndDisabled();
     }
 
-    ImGui::Dummy(ImVec2(0.0f, 8.0f));
-    ImGui::TextDisabled("Жалобы на непонятые строки файла — во вкладке «Журнал».");
 }
 
 void MainWindow::drawLogTab() {
