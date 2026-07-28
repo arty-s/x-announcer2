@@ -23,41 +23,54 @@ constexpr float kControlWidth = 208.0f;
 constexpr int kBaseWidth = 620;
 constexpr int kBaseHeight = 520;
 
-// Three levels of text, and now three sizes to carry them: the value leads, the
-// label names it, the note explains it. In 1.x this had to be done with colour
-// alone - one font, one size, no way to add either.
-using ui::kEngraved;
+// Four sizes with a job each, and four strengths of the same ink. Hierarchy is
+// carried by both together: the focus size says "this is what the tab is about",
+// the ink strength says "this is a value, that is a label, that is an aside". In
+// 1.x it had to be done with colour alone - one font, one size, no way to add
+// either.
+using ui::kAccent;
+using ui::kInkDim;
+using ui::kInkMute;
 using ui::kMet;
-using ui::kWaiting;
 
 void section(const char* title) { ui::sectionHeading(title); }
 
-// A note in the small size: quieter by measure as well as by colour.
+// A note in the note size: quieter by measure as well as by colour.
 void small(const char* text) {
-    if (ImFont* font = XpImguiWindow::smallFont()) {
+    if (ImFont* font = XpImguiWindow::noteFont()) {
         ImGui::PushFont(font);
     }
-    ImGui::PushStyleColor(ImGuiCol_Text, kEngraved);
+    ImGui::PushStyleColor(ImGuiCol_Text, kInkMute);
     ImGui::TextWrapped("%s", text);
     ImGui::PopStyleColor();
-    if (XpImguiWindow::smallFont() != nullptr) {
+    if (XpImguiWindow::noteFont() != nullptr) {
         ImGui::PopFont();
     }
 }
 
-// Label on the left, control on the right at a fixed width.
+// Label on the left, control on the right at a fixed width. The label is dimmer
+// than the value it names - it is read once, the value is read every time.
 void label(const char* text) {
     ImGui::AlignTextToFramePadding();
+    ImGui::PushStyleColor(ImGuiCol_Text, kInkDim);
     ImGui::TextUnformatted(text);
+    ImGui::PopStyleColor();
     ImGui::SameLine(kLabelColumn);
     ImGui::SetNextItemWidth(kControlWidth);
 }
 
-// The quietest level: why a setting exists, or what it costs.
-void note(const char* text) {
-    ImGui::Indent(12.0f);
-    small(text);
-    ImGui::Unindent(12.0f);
+// A switch and the sentence that says what it does. The sentence is not
+// decoration: eight short labels in two columns were unreadable precisely
+// because the short label has to leave something out, and what it left out was
+// the difference between "announce the lights" and "control the lights".
+void switchCell(const char* title, bool* value, const char* explanation,
+                bool* changed) {
+    if (ImGui::Checkbox(title, value)) {
+        *changed = true;
+    }
+    ImGui::PushTextWrapPos(0.0f);
+    small(explanation);
+    ImGui::PopTextWrapPos();
 }
 
 void copyInto(char* buffer, std::size_t size, const std::string& text) {
@@ -90,8 +103,6 @@ MainWindow::MainWindow(Announcer* announcer)
 void MainWindow::syncTextBuffers() {
     const core::Settings& s = announcer_->settings();
     copyInto(libraryBuffer_, sizeof(libraryBuffer_), s.library);
-    copyInto(languageBuffer_, sizeof(languageBuffer_), s.language);
-    copyInto(seatbeltBuffer_, sizeof(seatbeltBuffer_), s.seatbeltDref);
     buffersFilled_ = true;
 }
 
@@ -116,6 +127,12 @@ void MainWindow::buildUi() {
         resizeKeepingCorner(static_cast<int>(kBaseWidth * scale),
                             static_cast<int>(kBaseHeight * scale));
     }
+
+    // The light the glass is lit by, painted before anything else so every
+    // surface above sits on top of it.
+    ui::drawAurora(ImGui::GetWindowDrawList(), ImGui::GetWindowPos(),
+                   ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x,
+                          ImGui::GetWindowPos().y + ImGui::GetWindowSize().y));
 
     if (ImGui::BeginTabBar("tabs")) {
         if (ImGui::BeginTabItem("Рейс")) {
@@ -142,23 +159,33 @@ void MainWindow::drawFlightTab() {
     core::Engine& engine = announcer_->engine();
     const core::Snapshot& s = announcer_->lastSnapshot();
 
-    // The phase is what this tab is for, so it is the one thing set in the large
-    // size. Everything else on the tab supports it.
-    if (ImFont* big = XpImguiWindow::largeFont()) {
+    // The phase is what this tab is for, so it is the one thing set in the focus
+    // size - and the only thing on the tab that gets it. Everything else here
+    // supports it.
+    if (ImFont* big = XpImguiWindow::focusFont()) {
         ImGui::PushFont(big);
     }
     ImGui::TextUnformatted(phaseTitle(engine.phase()));
-    if (XpImguiWindow::largeFont() != nullptr) {
+    if (XpImguiWindow::focusFont() != nullptr) {
         ImGui::PopFont();
     }
-    ImGui::SameLine();
+    // The internal name of the phase, stencilled beside it: it is what the log
+    // and the bench call this phase, so a question about either can be asked
+    // without translating first.
+    ImGui::SameLine(0.0f, 10.0f);
+    if (ImFont* engraved = XpImguiWindow::engravedFont()) {
+        ImGui::PushFont(engraved);
+    }
     ImGui::AlignTextToFramePadding();
-    ImGui::TextDisabled("%s", core::phaseId(engine.phase()));
+    ImGui::TextColored(ui::kEngraved, "%s", core::phaseId(engine.phase()));
+    if (XpImguiWindow::engravedFont() != nullptr) {
+        ImGui::PopFont();
+    }
 
     // Said here as well as on the settings tab: this is the tab someone stares
     // at wondering why nothing is being announced.
     if (!announcer_->settings().flight.enabled) {
-        ImGui::TextColored(kWaiting, "Объявления выключены — плагин молчит целиком.");
+        ImGui::TextColored(kAccent, "Объявления выключены — плагин молчит целиком.");
     }
 
     // What the machine is waiting for. This list is generated by the same code
@@ -169,10 +196,14 @@ void MainWindow::drawFlightTab() {
         ImGui::Indent(4.0f);
         ui::statusLamp(c.met);
         ImGui::SameLine(0.0f, 10.0f);
-        ImGui::TextColored(c.met ? kMet : kWaiting, "%s", c.label.c_str());
+        // A satisfied condition is stated in full ink; one still holding the
+        // flight up is dimmer, with its lamp unlit. There is no third colour for
+        // "waiting" - an unlit lamp beside quieter text already says it, and an
+        // amber would have been a second accent competing with the first.
+        ImGui::TextColored(c.met ? ui::kInk : kInkMute, "%s", c.label.c_str());
         if (!c.value.empty()) {
             ImGui::SameLine();
-            ImGui::TextDisabled("— %s", c.value.c_str());
+            ImGui::TextColored(ui::kEngraved, "— %s", c.value.c_str());
         }
         ImGui::Unindent(4.0f);
     }
@@ -183,7 +214,12 @@ void MainWindow::drawFlightTab() {
     } else {
         ImGui::TextDisabled("тишина");
     }
-    ImGui::Text("В очереди: %zu", engine.queueSize());
+    // The queue is shown only when there is one. A counter reading 0 for the
+    // whole flight is diagnostics left over from the port, and it invites the
+    // exact question "what queue?" from someone who has no queue to think about.
+    if (engine.queueSize() > 0) {
+        ImGui::Text("В очереди: %zu", engine.queueSize());
+    }
     if (engine.musicPlaying()) {
         ImGui::Text("Фон: %s", engine.musicEvent().c_str());
     }
@@ -198,8 +234,20 @@ void MainWindow::drawFlightTab() {
     const char* belt = s.seatbelt == core::Tri::Unknown ? "борт его не публикует"
                                                         : (s.seatbelt == core::Tri::On ? "горит" : "погашено");
     ImGui::Text("табло ремней: %s", belt);
-    if (announcer_->simState().seatbeltDataref()[0] != '\0') {
-        ImGui::TextDisabled("  %s", announcer_->simState().seatbeltDataref());
+    const char* found = announcer_->simState().seatbeltDataref();
+    if (found[0] != '\0') {
+        ImGui::TextColored(ui::kEngraved, "  %s", found);
+    }
+    // The dataref field itself now lives in config.ini, but the panel still has
+    // to say when what was typed there is not what is being read. Falling back
+    // silently looks identical to "my dataref works", and the typo then lives in
+    // the file forever.
+    const std::string& wanted = announcer_->settings().seatbeltDref;
+    if (!wanted.empty() && wanted != found) {
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextColored(kAccent, "  в config.ini указан %s — на этом борту такого датарефа нет",
+                           wanted.c_str());
+        ImGui::PopTextWrapPos();
     }
 }
 
@@ -305,56 +353,59 @@ void MainWindow::drawSettingsTab() {
             announcer_->settingsChanged();
         }
 
-        value = static_cast<float>(settings.duck);
-        label("Приглушение музыки");
-        if (ImGui::SliderFloat("##duck", &value, 0.0f, 1.0f, "%.2f")) {
-            settings.duck = value;
-            announcer_->settingsChanged();
-        }
-        note("Во сколько раз тише становится музыка, пока говорит бортпроводник.");
-        // The audio buses are NOT here. Choosing between interior, exterior, ui
-        // and com1 asks the user to know how X-Plane's mixer routes sound, to
-        // answer a question almost nobody has - the default is right for a cabin
-        // announcement. The keys stay in config.ini for the rare case.
+        // Neither the ducking amount nor the audio buses are here. Both ask the
+        // user to answer a question they do not have - by how much exactly, and
+        // through which of X-Plane's mixer buses - and both have a default that
+        // is right for a cabin announcement. The keys stay in config.ini.
     }
 
     section("ЧТО ОБЪЯВЛЯТЬ");
     {
+        // Two columns, each switch with the sentence that says what it does.
+        // Short labels alone were tried and failed on their own terms: "Свет
+        // ночью" reads as though the plugin dims the cabin, which it cannot do -
+        // it only announces that the crew is about to.
         const struct {
-            const char* label;
+            const char* title;
             bool* value;
+            const char* explanation;
         } switches[] = {
-            {"Объявления включены", &settings.flight.enabled},
-            {"Музыка при посадке пассажиров", &settings.flight.boardingMusic},
-            {"Шум салона в полёте", &settings.flight.cabinNoise},
-            {"Начинать посадку самостоятельно", &settings.flight.autoBoarding},
-            {"Приветствие командира", &settings.flight.pilotWelcome},
-            {"Объявления про двери", &settings.flight.doorCalls},
-            {"Свет в салоне ночью", &settings.flight.nightDim},
-            {"Реакция салона на касание", &settings.flight.landingReaction},
+            {"Объявления", &settings.flight.enabled,
+             "Главный выключатель. Выключено — плагин молчит целиком."},
+            {"Музыка при посадке", &settings.flight.boardingMusic,
+             "Фон, пока пассажиры садятся, и после высадки."},
+            {"Шум салона", &settings.flight.cabinNoise,
+             "Ровный гул салона, только в воздухе."},
+            {"Посадка сама", &settings.flight.autoBoarding,
+             "Плагин сам решает, что посадка пассажиров началась: борт запитан, "
+             "стоит, двигатели и маяк выключены."},
+            {"Командир", &settings.flight.pilotWelcome,
+             "Приветствие командира следом за приветствием экипажа."},
+            {"Двери", &settings.flight.doorCalls,
+             "Двери на автомат перед выруливанием и в ручной режим на стоянке."},
+            {"Свет ночью", &settings.flight.nightDim,
+             "Объявление о приглушении света на ночном взлёте и снижении. "
+             "Самим светом плагин не управляет."},
+            {"Реакция на посадку", &settings.flight.landingReaction,
+             "Салон отзывается на мягкое или жёсткое приземление."},
         };
-        for (const auto& item : switches) {
-            if (ImGui::Checkbox(item.label, item.value)) {
-                announcer_->settingsChanged();
+        bool changed = false;
+        if (ImGui::BeginTable("switches", 2, ImGuiTableFlags_SizingStretchSame)) {
+            for (const auto& item : switches) {
+                ImGui::TableNextColumn();
+                switchCell(item.title, item.value, item.explanation, &changed);
             }
+            ImGui::EndTable();
+        }
+        if (changed) {
+            announcer_->settingsChanged();
         }
         if (!settings.flight.enabled) {
-            ImGui::TextColored(kWaiting, "  Сейчас плагин молчит целиком.");
+            ImGui::TextColored(kAccent, "Сейчас плагин молчит целиком.");
         }
-
-        int seconds = static_cast<int>(settings.flight.boardingRepeat);
-        label("Повтор приветствия");
-        if (ImGui::SliderInt("##boarding_repeat", &seconds, 30, 900, "%d с")) {
-            settings.flight.boardingRepeat = seconds;
-            announcer_->settingsChanged();
-        }
-
-        int loops = settings.flight.musicMaxLoops;
-        label("Повторов музыки");
-        if (ImGui::SliderInt("##music_max_loops", &loops, 0, 20)) {
-            settings.flight.musicMaxLoops = loops;
-            announcer_->settingsChanged();
-        }
+        // The repeat interval and the music loop count are gone from here too:
+        // one is a number nobody tunes, the other existed in 1.x only to bound a
+        // FlyWithLua memory leak that v2 does not have. Both keys still work.
     }
 
     section("БИБЛИОТЕКА");
@@ -377,37 +428,17 @@ void MainWindow::drawSettingsTab() {
         ImGui::TextDisabled("  Внутри — по папке на авиакомпанию (SBI, AFL, DLH…), "
                             "как у MSFS Universal Announcer.");
         ImGui::PopTextWrapPos();
-        label("Язык внутри пака");
-        ImGui::InputText("##language", languageBuffer_, sizeof(languageBuffer_));
-        if (ImGui::IsItemDeactivatedAfterEdit()) {
-            settings.language = languageBuffer_;
-            announcer_->settingsChanged(true);
-        }
-        note("Подпапка вроде en-us или ru. Если в паке она одна, берётся она "
-             "независимо от этой строки.");
+        // The language subfolder is not offered here. In a pack with one
+        // language it is taken regardless of what the field says, which is most
+        // packs - a control that usually changes nothing looks broken when it
+        // finally does not. The `language` key still works.
     }
 
     section("ПРОЧЕЕ");
     {
-        label("Датареф табло ремней");
-        ImGui::InputText("##seatbelt", seatbeltBuffer_, sizeof(seatbeltBuffer_));
-        if (ImGui::IsItemDeactivatedAfterEdit()) {
-            settings.seatbeltDref = seatbeltBuffer_;
-            announcer_->settingsChanged();
-        }
-        // The panel has to say when what was typed is not what is being read.
-        // Silently falling back looks identical to "my dataref works", and the
-        // typo then lives in the file forever.
-        const std::string& wanted = settings.seatbeltDref;
-        const char* found = announcer_->simState().seatbeltDataref();
-        if (wanted.empty()) {
-            note("Пусто — плагин ищет сам.");
-        } else if (wanted != found) {
-            ImGui::TextColored(kWaiting, "  На этом борту такого датарефа нет — читается свой:");
-        }
-        ImGui::TextDisabled("  читается: %s",
-                            found[0] == '\0' ? "этот борт табло не публикует" : found);
-
+        // The seatbelt dataref field has moved to config.ini as well. What it
+        // was really for - seeing whether the aircraft publishes a sign at all -
+        // is on the Рейс tab, which is where someone is already looking.
         float scale = static_cast<float>(settings.windowScale);
         label("Масштаб окна");
         if (ImGui::SliderFloat("##window_scale", &scale, 0.8f, 2.0f, "%.2f")) {

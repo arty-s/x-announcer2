@@ -30,15 +30,23 @@ public:
     // what someone asking for a bigger scale wants.
     void resizeKeepingCorner(int width, int height);
 
-    // Loads the Cyrillic-capable UI font once, shared by every window, in three
-    // sizes: the body size given, a smaller one for notes and section lettering,
-    // and a larger one for the few values that lead. One typeface, three sizes -
-    // 1.x had exactly one of each, which is why its hierarchy had to be carried
-    // by colour alone.
+    // Loads the Cyrillic-capable UI font once, shared by every window, in four
+    // sizes - and each size has a job, which is the part that was missing when
+    // there were merely several of them:
+    //
+    //   focus    ~1.375x  the one thing a tab is about, once per tab
+    //   body      1.0x    labels, values, the checklist
+    //   note     ~0.81x   why a setting exists, what it costs
+    //   engraved ~0.69x   section lettering, stencilled and tracked
+    //
+    // At the intended 16 px body that lands on 22 / 16 / 13 / 11. One typeface,
+    // four steps of roughly 1.25 - 1.x had exactly one of each, which is why its
+    // hierarchy had to be carried by colour alone.
     static bool loadUiFont(const std::string& ttfPath, float sizePixels);
 
-    static ImFont* smallFont();
-    static ImFont* largeFont();
+    static ImFont* engravedFont();
+    static ImFont* noteFont();
+    static ImFont* focusFont();
 
 protected:
     // Called inside NewFrame/Render with an ImGui window already open.

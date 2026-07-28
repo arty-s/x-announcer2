@@ -27,10 +27,10 @@ private:
     void drawSettingsTab();
     void drawLogTab();
 
-    // ImGui edits text in place, so the three free-text settings need buffers of
-    // their own. They are refilled from the settings whenever the file is
-    // re-read, and written back when the field loses focus rather than on every
-    // keystroke - a half-typed folder name is not a folder name.
+    // ImGui edits text in place, so the one free-text setting left in the panel
+    // needs a buffer of its own. It is refilled from the settings whenever the
+    // file is re-read, and written back when the field loses focus rather than
+    // on every keystroke - a half-typed folder name is not a folder name.
     void syncTextBuffers();
 
     Announcer* announcer_ = nullptr;
@@ -39,8 +39,6 @@ private:
     double appliedScale_ = 0.0;
     bool buffersFilled_ = false;
     char libraryBuffer_[512] = {0};
-    char languageBuffer_[32] = {0};
-    char seatbeltBuffer_[160] = {0};
 };
 
 }  // namespace xa
