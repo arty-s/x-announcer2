@@ -26,6 +26,12 @@ public:
     // says so in the log rather than falling silent.
     bool selectPack(const std::string& pack);
 
+    // Picks the pack for a detected airline: its own if we have one, otherwise
+    // Default. Recognising the airline and owning its sounds are separate
+    // questions, and conflating them is what once made a recognised S7 livery
+    // report itself as undetected.
+    void selectPackForAirline(const std::string& icao);
+
     bool has(const std::string& event) const override;
     double duration(const std::string& event) const override;
 

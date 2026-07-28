@@ -172,6 +172,28 @@ bool FileSoundLibrary::selectPack(const std::string& pack) {
     return true;
 }
 
+void FileSoundLibrary::selectPackForAirline(const std::string& icao) {
+    // Pack folders are named after the airline, but nobody agrees on case.
+    const std::string wanted = lower(icao);
+    for (const auto& [name, _] : packs_) {
+        if (lower(name) == wanted) {
+            selectPack(name);
+            return;
+        }
+    }
+    for (const auto& [name, _] : packs_) {
+        if (lower(name) == "default") {
+            if (name != pack_) {
+                log("library: no pack for %s - playing %s", icao.c_str(), name.c_str());
+            }
+            selectPack(name);
+            return;
+        }
+    }
+    log("library: no pack for %s and no Default pack either - staying on '%s'",
+        icao.c_str(), pack_.c_str());
+}
+
 std::string FileSoundLibrary::pathFor(const std::string& event) const {
     const auto pack = packs_.find(pack_);
     if (pack == packs_.end()) {

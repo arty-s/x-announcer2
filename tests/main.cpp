@@ -15,7 +15,9 @@
 #include <string>
 #include <vector>
 
+#include "airline_test.h"
 #include "audio_test.h"
+#include "core/airline.h"
 #include "scenario.h"
 
 namespace fs = std::filesystem;
@@ -64,7 +66,47 @@ std::vector<std::string> describeDiff(const std::vector<std::string>& want,
 
 }  // namespace
 
+namespace {
+
+// One line of "text<TAB>code" per input line. Used by the airline comparison
+// against 1.x, which needs to ask the same question of both implementations
+// without linking either into the other.
+int detectFromFile(const std::string& path) {
+    xa::core::AirlineIndex index;
+    if (index.loadFile(XA_AIRLINES_FILE) == 0) {
+        std::cerr << "cannot load " << XA_AIRLINES_FILE << "\n";
+        return 2;
+    }
+    std::ifstream input(path);
+    if (!input) {
+        std::cerr << "cannot open " << path << "\n";
+        return 2;
+    }
+    const xa::core::HasPack noPacks = [](const std::string&) { return false; };
+    std::string line;
+    while (std::getline(input, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        const auto verdict = index.resolve("Aircraft/Test/liveries/" + line + "/", "", "", "", noPacks);
+        std::cout << line << "\t" << verdict.code << "\n";
+    }
+    return 0;
+}
+
+}  // namespace
+
 int main(int argc, char** argv) {
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg.rfind("--detect-file=", 0) == 0) {
+            return detectFromFile(arg.substr(14));
+        }
+    }
+
     fs::path scenarioDir = XA_SCENARIO_DIR;
     std::string libraryDir = R"(D:\UA_Sounds)";
     bool updateGolden = false;
@@ -97,6 +139,9 @@ int main(int argc, char** argv) {
     int failed = 0;
 
     xa::test::runAudioChecks(libraryDir.c_str(), &checks, &failed);
+    std::cout << "\n";
+
+    xa::test::runAirlineChecks(XA_AIRLINES_FILE, XA_LIVERY_FILE, &checks, &failed);
     std::cout << "\n";
 
     for (const fs::path& file : files) {

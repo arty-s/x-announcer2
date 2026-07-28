@@ -1,0 +1,36 @@
+# Real livery folder names, taken off disk from ToLiss, Zibo, Laminar, Rotate and
+# FlightFactor aircraft. The expected code is what a human reads off the folder
+# name; DEFAULT means "nothing in there names an airline".
+#
+# Data, not code: the same file is fed to both implementations by
+# tests/diff_airlines_vs_1x.py, so a disagreement shows up as a diff instead of
+# as two test suites that quietly believe different things.
+#
+# folder<TAB>expected ICAO
+[CFMLEAP] S7 AIRLINES RA-73466	SBI
+AFL RA-73735	AFL
+4K Aeroflot RA-73735	AFL
+SHAR ROSSIYA RA-73194	SDM
+Turkish Airlines 8K	THY
+Thai Airways HS-TXS	THA
+A320 NEO Air Serbia	ASL
+[LEAP] A20N Ural Airlines RA-73820	SVR
+AirAsiaOld 9M-AHR	AXM
+Lufthansa Old	DLH
+[CFM] Aeroflot HOF DOBROLET	AFL
+(IAE) Yamal	LLM
+Ryanair	RYR
+Air China	CCA
+China Eastern	CES
+80NG - Nordwind RA-73314	NWS
+764 Turkish Airlines	THY
+767 British Airways	BAW
+Red Wings Airlines RA-73329	RWZ
+Lufthansa_Cargo D-ALCN (RETRO)	GEC
+Southwest	SWA
+Aerolineas Argentinas	ARG
+Scandinavian Airlines	SAS
+CathayPacific	CPA
+VirginAtlantic	VIR
+Laminar House	DEFAULT
+full_white	DEFAULT

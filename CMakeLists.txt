@@ -55,6 +55,7 @@ endif()
 # what lets the same logic be compared against 1.x scenario by scenario.
 add_library(xa_core STATIC
     src/core/engine.cpp
+    src/core/airline.cpp
 )
 target_include_directories(xa_core PUBLIC src)
 if(MSVC)
@@ -68,11 +69,14 @@ add_executable(xa_test
     tests/main.cpp
     tests/scenario.cpp
     tests/audio_test.cpp
+    tests/airline_test.cpp
 )
 target_link_libraries(xa_test PRIVATE xa_core xa_audio)
 target_include_directories(xa_test PRIVATE tests)
 target_compile_definitions(xa_test PRIVATE
     XA_SCENARIO_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/scenarios"
+    XA_AIRLINES_FILE="${CMAKE_CURRENT_SOURCE_DIR}/assets/airlines.txt"
+    XA_LIVERY_FILE="${CMAKE_CURRENT_SOURCE_DIR}/tests/liveries.txt"
 )
 if(MSVC)
     target_compile_options(xa_test PRIVATE /utf-8 /W4 /permissive-)

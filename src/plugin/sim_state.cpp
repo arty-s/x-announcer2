@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 #include "XPLMDataAccess.h"
+#include "XPLMPlanes.h"
 
 #include "plugin/xa_log.h"
 
@@ -84,6 +86,36 @@ void SimState::bind() {
     log("datarefs: seatbelt %s, logo %s",
         seatbeltName_[0] != '\0' ? seatbeltName_ : "none published by this aircraft",
         logo_ != nullptr ? "found" : "none");
+}
+
+SimState::Identity SimState::readIdentity() const {
+    // String datarefs come back as a byte array that is NOT guaranteed to be
+    // terminated, so the length is asked for first and the result trimmed at the
+    // first NUL rather than trusted.
+    const auto readString = [](const char* name) {
+        XPLMDataRef ref = XPLMFindDataRef(name);
+        if (ref == nullptr) {
+            return std::string();
+        }
+        const int size = XPLMGetDatab(ref, nullptr, 0, 0);
+        if (size <= 0) {
+            return std::string();
+        }
+        std::vector<char> buffer(static_cast<std::size_t>(size) + 1, '\0');
+        XPLMGetDatab(ref, buffer.data(), 0, size);
+        return std::string(buffer.data());
+    };
+
+    Identity identity;
+    identity.liveryPath = readString("sim/aircraft/view/acf_livery_path");
+    identity.tailNumber = readString("sim/aircraft/view/acf_tailnum");
+    identity.description = readString("sim/aircraft/view/acf_descrip");
+
+    char fileName[256] = {0};
+    char filePath[1024] = {0};
+    XPLMGetNthAircraftModel(0, fileName, filePath);
+    identity.aircraftFile = fileName;
+    return identity;
 }
 
 core::Snapshot SimState::read() const {

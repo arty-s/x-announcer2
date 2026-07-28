@@ -1,5 +1,7 @@
 #include "plugin/announcer.h"
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <filesystem>
 
@@ -47,13 +49,48 @@ std::string Announcer::findLibrary() const {
 void Announcer::start() {
     sim_.bind();
     library_.scan(findLibrary());
+    const int carriers = airlines_.loadFile(assetPath("airlines.txt"));
+    if (carriers == 0) {
+        log("airlines: table not found beside the plugin - detection will fall back to Default");
+    } else {
+        log("airlines: %d carriers loaded", carriers);
+    }
     snapshot_ = sim_.read();
+    resolveAirline();
 }
 
 void Announcer::onAircraftLoaded() {
     // Add-on datarefs come and go with the aircraft, so the bindings are redone
     // rather than trusted. The seat belt sign in particular is aircraft-specific.
     sim_.bind();
+    lastLivery_.clear();  // force a fresh verdict for the new aeroplane
+}
+
+void Announcer::resolveAirline() {
+    const SimState::Identity identity = sim_.readIdentity();
+    lastLivery_ = identity.liveryPath;
+
+    // Owning a pack is allowed to promote an explicit three-letter code, and
+    // nothing more: it must never decide whether the airline was recognised.
+    const core::HasPack hasPack = [this](const std::string& code) {
+        for (const std::string& name : library_.packs()) {
+            if (name.size() == code.size() &&
+                std::equal(name.begin(), name.end(), code.begin(), [](char a, char b) {
+                    return std::tolower(static_cast<unsigned char>(a)) ==
+                           std::tolower(static_cast<unsigned char>(b));
+                })) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    airline_ = airlines_.resolve(identity.liveryPath, identity.tailNumber, identity.aircraftFile,
+                                 identity.description, hasPack);
+    const std::string name = airlines_.nameOf(airline_.code);
+    log("airline: %s%s - %s", airline_.code.c_str(),
+        name.empty() ? "" : (" (" + name + ")").c_str(), airline_.source.c_str());
+    library_.selectPackForAirline(airline_.code);
 }
 
 void Announcer::execute(const core::Intent& intent) {
@@ -95,6 +132,16 @@ void Announcer::execute(const core::Intent& intent) {
 
 void Announcer::frame() {
     snapshot_ = sim_.read();
+
+    // A livery change is the one identity event X-Plane does not announce with a
+    // message, so it is watched. Checked per frame because reading a string
+    // dataref is cheap and a stale airline is heard immediately.
+    if (autoAirline) {
+        const std::string livery = sim_.readIdentity().liveryPath;
+        if (livery != lastLivery_) {
+            resolveAirline();
+        }
+    }
 
     const double simNow = simSeconds();
     const double wallNow = wallSeconds();

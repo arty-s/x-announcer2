@@ -2,6 +2,8 @@
 // name of a dataref.
 #pragma once
 
+#include <string>
+
 #include "core/snapshot.h"
 
 namespace xa {
@@ -14,6 +16,16 @@ public:
     void bind();
 
     core::Snapshot read() const;
+
+    // Who we are flying, as opposed to how we are flying it. Read separately
+    // because it only changes when the aircraft or the livery does.
+    struct Identity {
+        std::string liveryPath;
+        std::string tailNumber;
+        std::string aircraftFile;
+        std::string description;
+    };
+    Identity readIdentity() const;
 
     // Which seat belt dataref was found, for the panel to show. Empty means the
     // aircraft publishes none, which is information, not a fault.

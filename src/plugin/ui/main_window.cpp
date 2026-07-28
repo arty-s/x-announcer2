@@ -110,16 +110,31 @@ void MainWindow::drawLibraryTab() {
                 library.packs().size(), library.eventCount());
     ImGui::Separator();
 
-    // Airline detection from the livery is not ported yet, so the pack is picked
-    // by hand here. This is temporary and the panel says so rather than leaving
-    // the wrong pack looking deliberate.
-    ImGui::TextDisabled("Определение авиакомпании по ливрее ещё не перенесено — пак выбирается вручную.");
-    for (const std::string& name : library.packs()) {
-        const bool selected = name == library.pack();
-        if (ImGui::RadioButton(name.c_str(), selected) && !selected) {
-            library.selectPack(name);
+    // Recognising the airline and owning its sounds are shown as two separate
+    // lines on purpose. Reporting "not detected" when the airline was in fact
+    // recognised but unowned is the exact defect this port had to preserve a fix
+    // for, and a panel that blurs the two invites it straight back.
+    const core::AirlineVerdict& airline = announcer_->airline();
+    const std::string name = announcer_->airlines().nameOf(airline.code);
+    ImGui::Text("Авиакомпания: %s%s", airline.code.c_str(),
+                name.empty() ? "" : (" — " + name).c_str());
+    ImGui::TextDisabled("  как определено: %s", airline.source.c_str());
+    if (airline.code != "Default" && library.pack() != airline.code) {
+        ImGui::TextDisabled("  пака нет, играет «%s»", library.pack().c_str());
+    }
+
+    if (ImGui::Checkbox("Определять по ливрее", &announcer_->autoAirline) &&
+        announcer_->autoAirline) {
+        announcer_->resolveAirline();
+    }
+    ImGui::BeginDisabled(announcer_->autoAirline);
+    for (const std::string& packName : library.packs()) {
+        const bool selected = packName == library.pack();
+        if (ImGui::RadioButton(packName.c_str(), selected) && !selected) {
+            library.selectPack(packName);
         }
     }
+    ImGui::EndDisabled();
 
     ImGui::Separator();
     ImGui::TextDisabled("Проверка звука без полёта:");
