@@ -60,16 +60,6 @@ void note(const char* text) {
     ImGui::Unindent(12.0f);
 }
 
-// Bus names as the settings file spells them, with the label a Russian speaker
-// would actually use. Index is the index into core::audioBusNames().
-const char* const kBusLabels[] = {"салон", "снаружи", "интерфейс", "COM1", "COM2", "земля"};
-
-int busIndex(const std::string& name) {
-    const std::vector<std::string>& names = core::audioBusNames();
-    const auto it = std::find(names.begin(), names.end(), name);
-    return it == names.end() ? 0 : static_cast<int>(it - names.begin());
-}
-
 void copyInto(char* buffer, std::size_t size, const std::string& text) {
     const std::size_t length = std::min(text.size(), size - 1);
     std::memcpy(buffer, text.data(), length);
@@ -322,22 +312,10 @@ void MainWindow::drawSettingsTab() {
             announcer_->settingsChanged();
         }
         note("Во сколько раз тише становится музыка, пока говорит бортпроводник.");
-
-        int bus = busIndex(settings.announceBus);
-        label("Шина объявлений");
-        if (ImGui::Combo("##announce_bus", &bus, kBusLabels, IM_ARRAYSIZE(kBusLabels))) {
-            settings.announceBus = core::audioBusNames()[static_cast<std::size_t>(bus)];
-            announcer_->settingsChanged();
-        }
-
-        bus = busIndex(settings.musicBus);
-        label("Шина музыки");
-        if (ImGui::Combo("##music_bus", &bus, kBusLabels, IM_ARRAYSIZE(kBusLabels))) {
-            settings.musicBus = core::audioBusNames()[static_cast<std::size_t>(bus)];
-            announcer_->settingsChanged();
-        }
-        note("Шина решает, как X-Plane обработает звук: «салон» глохнет снаружи, "
-             "«интерфейс» слышен всегда. Новая шина применится к следующему объявлению.");
+        // The audio buses are NOT here. Choosing between interior, exterior, ui
+        // and com1 asks the user to know how X-Plane's mixer routes sound, to
+        // answer a question almost nobody has - the default is right for a cabin
+        // announcement. The keys stay in config.ini for the rare case.
     }
 
     section("ЧТО ОБЪЯВЛЯТЬ");
