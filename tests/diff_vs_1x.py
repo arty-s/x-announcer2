@@ -60,6 +60,7 @@ class Scenario:
         self.library: dict[str, float] = {}
         self.steps: list[tuple] = []
         self.touches_seatbelt = False
+        self.environment_events: list[str] = []
 
         with open(path, encoding="utf-8") as f:
             for raw in f:
@@ -93,6 +94,13 @@ class Scenario:
                     self.steps.append(("advance", float(rest[0]), rate))
                 elif verb == "expect":
                     pass  # checked by the C++ bench; the diff compares traces
+                elif verb == "event":
+                    # Something the simulator TELLS the plugin. There is nothing
+                    # to compare here: in 1.x the same events restart FlyWithLua's
+                    # Lua engine, so its "handling" is the plugin being loaded
+                    # again from zero, which this bench cannot express. The
+                    # scenario is skipped, out loud, rather than half-flown.
+                    self.environment_events.append(rest[0] if rest else verb)
                 else:
                     raise SystemExit(f"{path}: unknown directive '{verb}'")
 
@@ -274,6 +282,11 @@ def main() -> int:
         golden = os.path.join(golden_dir, scenario.name + ".trace")
         if not os.path.exists(golden):
             print(f"-- {scenario.name}: SKIP (no C++ trace; run xa_test first)")
+            continue
+        if scenario.environment_events:
+            events = ", ".join(scenario.environment_events)
+            print(f"-- {scenario.name}: SKIP ({events} - in 1.x this restarts the "
+                  f"Lua engine, so there is no behaviour to compare)")
             continue
 
         cpp = read_cpp_trace(golden)

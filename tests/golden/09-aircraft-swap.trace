@@ -1,0 +1,11 @@
+     0.0 phase BOARDING (cabin ready)
+     0.5 play BoardingStarted (cabin ready)
+     9.0 play BoardingWelcome (boarding)
+    20.0 phase PUSHBACK (beacon on)
+    20.5 play BoardingComplete (beacon on)
+event plane_loaded
+    26.0 stop BoardingComplete (stopped)
+    26.0 reset PREFLIGHT (new aircraft)
+    28.0 phase BOARDING (cabin ready)
+    28.5 play BoardingStarted (cabin ready)
+    37.0 play BoardingWelcome (boarding)

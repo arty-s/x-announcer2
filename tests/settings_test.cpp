@@ -93,7 +93,8 @@ void runSettingsChecks(int* checks, int* failed) {
                   again.musicBus == defaults.musicBus && again.volume == defaults.volume &&
                   again.musicVolume == defaults.musicVolume && again.duck == defaults.duck &&
                   again.seatbeltDref == defaults.seatbeltDref &&
-                  again.windowScale == defaults.windowScale && again.autoFind == defaults.autoFind,
+                  again.windowScale == defaults.windowScale &&
+                  again.panelOpen == defaults.panelOpen && again.autoFind == defaults.autoFind,
               "defaults survive write then read");
         check(again.flight.enabled == defaults.flight.enabled &&
                   again.flight.boardingMusic == defaults.flight.boardingMusic &&
@@ -118,6 +119,7 @@ void runSettingsChecks(int* checks, int* failed) {
               "library defaults match 1.x");
         check(s.volume == 0.85 && s.musicVolume == 0.35 && s.duck == 0.25 && s.windowScale == 1.0,
               "volume defaults match 1.x");
+        check(!s.panelOpen, "the panel does not open itself on a fresh install");
         check(s.flight.enabled && s.flight.boardingMusic && !s.flight.cabinNoise &&
                   s.flight.autoBoarding && !s.flight.pilotWelcome && s.flight.doorCalls &&
                   s.flight.nightDim && s.flight.landingReaction &&

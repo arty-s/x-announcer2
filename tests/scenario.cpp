@@ -149,6 +149,19 @@ private:
                 }
             }
             advance(std::stod(words[1]), rate);
+        } else if (verb == "event") {
+            // Things the simulator tells the plugin rather than shows in a
+            // dataref. Only one so far: the user swapped aeroplanes.
+            if (words.size() < 2) {
+                fail(lineNo, "event needs a name");
+                return;
+            }
+            if (words[1] == "plane_loaded" || words[1] == "airport_loaded") {
+                engine().restartFlight(words[1] == "plane_loaded" ? "new aircraft" : "new airport");
+                trace_.push_back("event " + words[1]);
+            } else {
+                fail(lineNo, "unknown event '" + words[1] + "'");
+            }
         } else if (verb == "expect") {
             expect(words, lineNo);
         } else {
@@ -259,7 +272,7 @@ private:
     void collect(Engine& e) {
         for (const Intent& intent : e.drainIntents()) {
             if (intent.kind == Intent::Kind::PlayAnnouncement) {
-                played_.insert(intent.event);
+                ++played_[intent.event];
             }
             if (intent.kind == Intent::Kind::Note) {
                 continue;  // notes are diagnostics, not behaviour
@@ -291,6 +304,18 @@ private:
             if (played_.count(words[2]) != 0) {
                 fail(lineNo, words[2] + " played but should not have");
             }
+        } else if (what == "play-count") {
+            if (words.size() < 4) {
+                fail(lineNo, "expect play-count needs an event and a number");
+                return;
+            }
+            const auto it = played_.find(words[2]);
+            const int actual = it == played_.end() ? 0 : it->second;
+            const int wanted = std::stoi(words[3]);
+            if (actual != wanted) {
+                fail(lineNo, words[2] + " played " + std::to_string(actual) + " times, expected " +
+                                 std::to_string(wanted));
+            }
         } else if (what == "playing") {
             if (words.size() < 3) { fail(lineNo, "expect playing needs an event or 'idle'"); return; }
             if (words[2] == "idle") {
@@ -311,7 +336,10 @@ private:
     Snapshot sim_;
     std::vector<std::string> trace_;
     std::vector<std::string> failures_;
-    std::set<std::string> played_;
+    // Counted, not just remembered: "played again" is the only way a scenario
+    // can tell that the flight was forgotten and started over, since the events
+    // themselves look identical the second time round.
+    std::map<std::string, int> played_;
 };
 
 }  // namespace

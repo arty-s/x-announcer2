@@ -44,6 +44,18 @@ public:
     // runs the state machine.
     void tick(const Snapshot& s);
 
+    // Start again from Preflight, forgetting everything about the flight that
+    // was in progress. In 1.x this needed no code at all: changing aircraft or
+    // airport restarts FlyWithLua's Lua engine, so the plugin came back from
+    // scratch. A native plugin keeps running, so the restart has to be said out
+    // loud - otherwise the new aeroplane inherits the old one's flight, which is
+    // how a freshly loaded cold aircraft came up claiming it was pushing back.
+    //
+    // Preflight even when the aeroplane is in the air: that is 1.x's behaviour
+    // too (its restart always began there), and resyncPhase moves it to Cruise
+    // shortly after if the aeroplane really is flying.
+    void restartFlight(const std::string& reason);
+
     std::vector<Intent> drainIntents();
 
     Phase phase() const { return f_.phase; }

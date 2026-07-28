@@ -28,6 +28,9 @@ public:
 
     void start();
     void onAircraftLoaded();
+    // The user's aeroplane was placed at a new airport (map teleport, "start a
+    // flight here"). The flight in progress belongs to where it came from.
+    void onRelocated();
 
     // Called every frame from the flight loop.
     void frame();

@@ -5,6 +5,7 @@
 // while here an uncaught one takes the simulator down with it. So every entry
 // point X-Plane can call goes through guarded(), and a callback that keeps
 // throwing gets switched off rather than allowed to keep trying.
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <memory>
@@ -110,6 +111,12 @@ void toggleWindow() {
     }
     g_window->setVisible(!g_window->isVisible());
     syncMenuMark();
+    // Remembered, so the panel comes back the way it was left instead of
+    // deciding for the user on every load.
+    if (g_announcer) {
+        g_announcer->settings().panelOpen = g_window->isVisible();
+        g_announcer->settingsChanged();
+    }
 }
 
 void menuHandler(void* /*menuRef*/, void* itemRef) {
@@ -188,9 +195,11 @@ PLUGIN_API int XPluginEnable(void) {
         if (!g_window) {
             g_window = std::make_unique<xa::MainWindow>(g_announcer.get());
         }
-        // Skeleton milestone: show the window straight away, so "did it load?"
-        // is answered without hunting through menus.
-        g_window->setVisible(true);
+        // Only if that is how the user left it. The plugin announces itself in
+        // Log.txt and in the Plugins menu; it has no business taking over the
+        // screen on every load.
+        const bool wanted = g_announcer && g_announcer->settings().panelOpen;
+        g_window->setVisible(wanted);
         syncMenuMark();
     });
     xa::log("enabled");
@@ -205,13 +214,32 @@ PLUGIN_API void XPluginDisable(void) {
     xa::log("disabled");
 }
 
-PLUGIN_API void XPluginReceiveMessage(XPLMPluginID /*from*/, int msg, void* /*param*/) {
+PLUGIN_API void XPluginReceiveMessage(XPLMPluginID /*from*/, int msg, void* param) {
     switch (msg) {
-        case XPLM_MSG_PLANE_LOADED:
-            xa::log("message: plane loaded");
+        case XPLM_MSG_PLANE_LOADED: {
+            // The parameter is the aircraft index, bit-cast into the pointer;
+            // only 0 is the user's. Without this check every AI aeroplane the
+            // sim spawns would restart the user's flight.
+            const int index = static_cast<int>(reinterpret_cast<std::intptr_t>(param));
+            xa::log("message: plane %d loaded", index);
+            if (index != 0) {
+                break;
+            }
             guarded(g_fuseMessage, [] {
                 if (g_announcer) {
                     g_announcer->onAircraftLoaded();
+                }
+            });
+            break;
+        }
+        case XPLM_MSG_AIRPORT_LOADED:
+            // "Positioned at a new airport" - the map teleport, or picking a new
+            // start. 1.x got its reset here for free, because this restarts the
+            // Lua engine.
+            xa::log("message: airport loaded");
+            guarded(g_fuseMessage, [] {
+                if (g_announcer) {
+                    g_announcer->onRelocated();
                 }
             });
             break;

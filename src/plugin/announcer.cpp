@@ -183,6 +183,14 @@ void Announcer::onAircraftLoaded() {
     // rather than trusted. The seat belt sign in particular is aircraft-specific.
     sim_.bind(settings_.seatbeltDref);
     lastLivery_.clear();  // force a fresh verdict for the new aeroplane
+    // And the flight starts over. Nothing in the datarefs says the aeroplane was
+    // replaced - it is parked before and after - so this message is the only
+    // signal there is.
+    engine_->restartFlight("new aircraft");
+}
+
+void Announcer::onRelocated() {
+    engine_->restartFlight("new airport");
 }
 
 void Announcer::applyPackChoice() {

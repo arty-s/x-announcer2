@@ -46,6 +46,12 @@ struct Settings {
     std::string seatbeltDref;  // empty = find it automatically
     double windowScale = 1.0;
 
+    // Was the panel open when X-Plane last shut down. v2-only: 1.x had no such
+    // key because FlyWithLua reopened nothing by itself. Until this existed the
+    // window forced itself open on every load - fine while the question was
+    // "did the plugin start at all", rude once the answer was always yes.
+    bool panelOpen = false;
+
     // Keys this build does not know: SimBrief and the widget are still to be
     // ported, and a file may also have been written by a newer version. They
     // are carried through a rewrite verbatim, because silently dropping a

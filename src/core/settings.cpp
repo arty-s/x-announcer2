@@ -140,6 +140,7 @@ const Help kHelp[] = {
     {"landing_reaction", "реакция салона на касание: LandingGreat или LandingTerrible"},
     {"seatbelt_dref", "свой датареф табло ремней; пусто - искать автоматически"},
     {"window_scale", "масштаб текста в окне, 1.0 - обычный; больше для VR"},
+    {"panel_open", "было ли окно плагина открыто при выходе; так оно и откроется в следующий раз"},
     {"auto_find", "искать готовую папку UA_Sounds, если в library паков не нашлось"},
     {"music_max_loops", "сколько раз зацикливать фоновый трек"},
 };
@@ -230,6 +231,8 @@ Settings parseSettings(const std::string& text, std::vector<std::string>* proble
             s.seatbeltDref = value;
         } else if (key == "window_scale") {
             parseNumber(key, value, 0.5, 3.0, &s.windowScale, problems);
+        } else if (key == "panel_open") {
+            parseBool(key, value, &s.panelOpen, problems);
         } else {
             s.unknown[key] = value;
         }
@@ -265,6 +268,7 @@ std::string writeSettings(const Settings& s) {
         {"landing_reaction", boolean(s.flight.landingReaction)},
         {"seatbelt_dref", s.seatbeltDref},
         {"window_scale", number(s.windowScale)},
+        {"panel_open", boolean(s.panelOpen)},
         {"auto_find", boolean(s.autoFind)},
         {"music_max_loops", number(static_cast<double>(s.flight.musicMaxLoops))},
     };

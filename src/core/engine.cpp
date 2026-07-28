@@ -107,6 +107,10 @@ std::vector<Intent> Engine::drainIntents() {
     return out;
 }
 
+void Engine::restartFlight(const std::string& reason) {
+    resetFlight(reason, Phase::Preflight);
+}
+
 void Engine::resetFlight(const std::string& reason, Phase startPhase) {
     f_ = FlightState();
     f_.phase = startPhase;

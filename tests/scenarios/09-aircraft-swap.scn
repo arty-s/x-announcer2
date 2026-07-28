@@ -1,0 +1,48 @@
+# The user swaps aeroplanes mid-turnaround.
+#
+# 1.x never needed code for this: changing aircraft restarts FlyWithLua's Lua
+# engine, so the plugin came back from scratch with an empty flight. A native
+# plugin keeps running, and the new aeroplane inherited the old one's phase -
+# Artyom loaded into a cold aircraft and was told it was pushing back.
+#
+# Nothing in the datarefs can be relied on to notice this: the aeroplane is
+# parked on the ground before AND after, which is exactly the case resyncPhase
+# refuses to touch (it only rescues an airborne phase on the ground, or the
+# reverse). The simulator's message is the only signal there is.
+
+config door_calls=1 boarding_repeat=300
+library BoardingStarted BoardingWelcome BoardingComplete ArmDoors
+library SafetyBriefing:45 DisembarkStarted
+
+set hour=12 seatbelt=0
+
+# ---- get the old aeroplane past boarding ---------------------------------
+set battery=1 nav=1
+advance 20
+expect phase BOARDING
+expect played BoardingStarted
+
+set beacon=1
+advance 6
+expect phase PUSHBACK
+expect played BoardingComplete
+
+# ---- swap aeroplanes ------------------------------------------------------
+# The new one is cold and dark: the panel switches go back off, as they do when
+# a fresh aircraft loads.
+event plane_loaded
+set battery=0 nav=0 beacon=0
+advance 2
+
+# The flight belongs to the aeroplane that left, not to this one.
+expect phase PREFLIGHT
+expect playing idle
+
+# ---- and it boards again from scratch -------------------------------------
+# Play COUNT, not "was it played": the announcements are the same ones as
+# before, so only playing a SECOND time proves the flight was forgotten rather
+# than merely rewound. Without the reset this stays at 1 and the check goes red.
+set battery=1 nav=1
+advance 20
+expect phase BOARDING
+expect play-count BoardingStarted 2

@@ -29,6 +29,12 @@ DEFAULT_XA_TEST = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(_
 NOT_PORTED = {"simbrief_id", "widget", "widget_mode", "widget_opacity", "widget_x", "widget_y"}
 
 # Differences that are meant. Anything not named here has to match exactly.
+# Keys v2 has and 1.x never needed.
+V2_ONLY = {
+    "panel_open": "1.x never reopened its window by itself; v2 has to remember, "
+                  "or it either forces the panel open or forgets it entirely",
+}
+
 DELIBERATE = {
     "music_bus": "1.x names FlyWithLua's mixer buses (master); the XPLM has no "
                  "master bus, so v2 uses the SDK's exterior - the bus music "
@@ -113,6 +119,9 @@ def main() -> int:
         problems.append(f"  {key}: 1.x {want!r} vs v2 {got!r}")
 
     for key in sorted(set(two) - set(one)):
+        if key in V2_ONLY:
+            print(f"  + {key}: v2 only - {V2_ONLY[key]}")
+            continue
         problems.append(f"  {key}: v2 has it ({two[key]!r}), 1.x does not")
 
     missing = sorted(k for k in NOT_PORTED if k in one)
