@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "audio_test.h"
 #include "scenario.h"
 
 namespace fs = std::filesystem;
@@ -65,11 +66,14 @@ std::vector<std::string> describeDiff(const std::vector<std::string>& want,
 
 int main(int argc, char** argv) {
     fs::path scenarioDir = XA_SCENARIO_DIR;
+    std::string libraryDir = R"(D:\UA_Sounds)";
     bool updateGolden = false;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--update-golden") {
             updateGolden = true;
+        } else if (arg.rfind("--library=", 0) == 0) {
+            libraryDir = arg.substr(10);
         } else {
             scenarioDir = arg;
         }
@@ -91,6 +95,10 @@ int main(int argc, char** argv) {
 
     int checks = 0;
     int failed = 0;
+
+    xa::test::runAudioChecks(libraryDir.c_str(), &checks, &failed);
+    std::cout << "\n";
+
     for (const fs::path& file : files) {
         const auto result = xa::test::runScenarioFile(file.string());
         std::cout << "-- " << result.name << " (" << result.trace.size() << " events)\n";

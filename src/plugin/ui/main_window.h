@@ -4,20 +4,25 @@
 
 namespace xa {
 
-// The skeleton window. Its only job is to prove, on a real machine, that the
-// four things v2 depends on actually work: the plugin loads, it can read
-// datarefs, ImGui draws, and Russian text renders.
+class Announcer;
+
+// The panel. Its job for now is diagnosis, not decoration: it has to show what
+// the plugin sees, what it is waiting for and what it is playing, because that
+// is what a live acceptance run needs. Proper visual work comes with the
+// interface-design pass, once the behaviour is settled.
 class MainWindow : public XpImguiWindow {
 public:
-    MainWindow();
+    explicit MainWindow(Announcer* announcer);
 
 protected:
     void buildUi() override;
 
 private:
-    int frames_ = 0;
-    float sliderValue_ = 0.5f;
-    char textField_[64] = "";
+    void drawFlightTab();
+    void drawLibraryTab();
+    void drawLogTab();
+
+    Announcer* announcer_ = nullptr;
 };
 
 }  // namespace xa

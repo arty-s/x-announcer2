@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(x_announcer2 LANGUAGES CXX)
+project(x_announcer2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -24,6 +24,31 @@ if(MSVC)
     target_compile_options(imgui PRIVATE /utf-8)
 endif()
 
+# --- Audio decoding ----------------------------------------------------------
+# stb_vorbis is C, and stays C: compiling it as C++ works by accident rather
+# than by design. Its warnings are not ours to fix, so they are silenced here
+# instead of being left to hide our own.
+add_library(xa_decoders STATIC
+    third_party/decoders/stb_vorbis.c
+    src/audio/decoders_impl.cpp
+)
+target_include_directories(xa_decoders PUBLIC third_party/decoders)
+target_compile_definitions(xa_decoders PUBLIC STB_VORBIS_NO_STDIO=1 STB_VORBIS_NO_PUSHDATA_API=1)
+if(MSVC)
+    target_compile_options(xa_decoders PRIVATE /W0)
+else()
+    target_compile_options(xa_decoders PRIVATE -w -fPIC)
+endif()
+
+add_library(xa_audio STATIC src/audio/pcm.cpp)
+target_include_directories(xa_audio PUBLIC src)
+target_link_libraries(xa_audio PUBLIC xa_decoders)
+if(MSVC)
+    target_compile_options(xa_audio PRIVATE /utf-8 /W4 /permissive-)
+else()
+    target_compile_options(xa_audio PRIVATE -Wall -Wextra -fPIC)
+endif()
+
 # --- The core ----------------------------------------------------------------
 # Not one line of XPLM, FMOD, filesystem or networking lives in here. That is
 # what lets the bench fly complete flights in milliseconds without X-Plane, and
@@ -42,8 +67,9 @@ endif()
 add_executable(xa_test
     tests/main.cpp
     tests/scenario.cpp
+    tests/audio_test.cpp
 )
-target_link_libraries(xa_test PRIVATE xa_core)
+target_link_libraries(xa_test PRIVATE xa_core xa_audio)
 target_include_directories(xa_test PRIVATE tests)
 target_compile_definitions(xa_test PRIVATE
     XA_SCENARIO_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/scenarios"
@@ -62,6 +88,10 @@ add_test(NAME scenarios COMMAND xa_test)
 # --- The plugin --------------------------------------------------------------
 add_library(x_announcer2 MODULE
     src/plugin/main.cpp
+    src/plugin/announcer.cpp
+    src/plugin/sim_state.cpp
+    src/plugin/file_library.cpp
+    src/plugin/audio_player.cpp
     src/plugin/xa_log.cpp
     src/plugin/xa_paths.cpp
     src/plugin/imgui_xp/xp_imgui_window.cpp
@@ -75,7 +105,7 @@ target_include_directories(x_announcer2 PRIVATE
     "${XA_SDK}/CHeaders/Widgets"
 )
 
-target_link_libraries(x_announcer2 PRIVATE imgui xa_core)
+target_link_libraries(x_announcer2 PRIVATE imgui xa_core xa_audio)
 
 # X-Plane 12.04+ (XPLM400 is what XPLMSound lives behind).
 target_compile_definitions(x_announcer2 PRIVATE

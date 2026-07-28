@@ -16,6 +16,7 @@
 #include "XPLMProcessing.h"
 #include "XPLMUtilities.h"
 
+#include "plugin/announcer.h"
 #include "plugin/ui/main_window.h"
 #include "plugin/xa_log.h"
 #include "plugin/xa_paths.h"
@@ -31,36 +32,53 @@ constexpr const char* kToggleCommand = "x_announcer2/toggle_window";
 // left alone; better a dead feature than a crashed simulator.
 constexpr int kErrorFuse = 10;
 
+std::unique_ptr<xa::Announcer> g_announcer;
 std::unique_ptr<xa::MainWindow> g_window;
 XPLMMenuID g_menu = nullptr;
 int g_menuToggleIndex = -1;
 XPLMCommandRef g_toggleCommand = nullptr;
-int g_errorCount = 0;
 bool g_fuseBlown = false;
+
+// One counter PER call site, never a shared one. 1.x learned this the hard way:
+// with a single counter the 30 Hz frame callback zeroed it on every successful
+// frame, so a callback that failed once a second could never reach the limit and
+// the fuse never blew. The flight loop below runs every frame, so the same trap
+// is right here waiting.
+struct Fuse {
+    const char* what;
+    int errors = 0;
+};
+
+Fuse g_fuseStart{"start"};
+Fuse g_fuseFrame{"flight loop"};
+Fuse g_fuseMenu{"menu toggle"};
+Fuse g_fuseCommand{"toggle command"};
+Fuse g_fuseEnable{"enable"};
+Fuse g_fuseMessage{"plane loaded"};
 
 // Runs fn, swallowing anything that escapes it. Returns false if it did not run
 // cleanly (or at all, once the fuse is blown).
 template <typename Fn>
-bool guarded(const char* what, Fn&& fn) {
+bool guarded(Fuse& fuse, Fn&& fn) {
     if (g_fuseBlown) {
         return false;
     }
     try {
         fn();
-        g_errorCount = 0;
+        fuse.errors = 0;
         return true;
     } catch (const std::exception& e) {
-        ++g_errorCount;
-        xa::log("ERROR in %s: %s (%d in a row)", what, e.what(), g_errorCount);
+        ++fuse.errors;
+        xa::log("ERROR in %s: %s (%d in a row)", fuse.what, e.what(), fuse.errors);
     } catch (...) {
-        ++g_errorCount;
-        xa::log("ERROR in %s: unknown exception (%d in a row)", what, g_errorCount);
+        ++fuse.errors;
+        xa::log("ERROR in %s: unknown exception (%d in a row)", fuse.what, fuse.errors);
     }
-    if (g_errorCount >= kErrorFuse) {
+    if (fuse.errors >= kErrorFuse) {
         g_fuseBlown = true;
-        xa::log("FUSE BLOWN after %d consecutive errors - the plugin has stopped "
-                "doing anything. Restart X-Plane after reporting the lines above.",
-                g_errorCount);
+        xa::log("FUSE BLOWN after %d consecutive errors in %s - the plugin has "
+                "stopped doing anything. Restart X-Plane after reporting the lines above.",
+                fuse.errors, fuse.what);
     }
     return false;
 }
@@ -74,9 +92,21 @@ void syncMenuMark() {
                       visible ? xplm_Menu_Checked : xplm_Menu_Unchecked);
 }
 
+// Every frame. The whole plugin is driven from here: read the sim, let the core
+// decide, carry out what it decided. It is wrapped like everything else - an
+// exception escaping a flight loop takes X-Plane with it.
+float flightLoopCb(float, float, int, void*) {
+    guarded(g_fuseFrame, [] {
+        if (g_announcer) {
+            g_announcer->frame();
+        }
+    });
+    return -1.0f;  // again next frame
+}
+
 void toggleWindow() {
     if (!g_window) {
-        g_window = std::make_unique<xa::MainWindow>();
+        g_window = std::make_unique<xa::MainWindow>(g_announcer.get());
     }
     g_window->setVisible(!g_window->isVisible());
     syncMenuMark();
@@ -84,13 +114,13 @@ void toggleWindow() {
 
 void menuHandler(void* /*menuRef*/, void* itemRef) {
     if (itemRef == reinterpret_cast<void*>(1)) {
-        guarded("menu toggle", [] { toggleWindow(); });
+        guarded(g_fuseMenu, [] { toggleWindow(); });
     }
 }
 
 int toggleCommandHandler(XPLMCommandRef /*cmd*/, XPLMCommandPhase phase, void* /*refcon*/) {
     if (phase == xplm_CommandBegin) {
-        guarded("toggle command", [] { toggleWindow(); });
+        guarded(g_fuseCommand, [] { toggleWindow(); });
     }
     return 0;
 }
@@ -114,7 +144,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
     XPLMGetVersions(&xplaneVersion, &xplmVersion, &host);
     xa::log("starting - X-Plane %d, XPLM %d", xplaneVersion, xplmVersion);
 
-    if (!guarded("start", [] {
+    if (!guarded(g_fuseStart, [] {
             xa::XpImguiWindow::loadUiFont(xa::assetPath("fonts/Roboto-Medium.ttf"), 18.0f);
 
             const int menuIndex =
@@ -126,6 +156,10 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
 
             g_toggleCommand = XPLMCreateCommand(kToggleCommand, "Toggle the X-Announcer 2 window");
             XPLMRegisterCommandHandler(g_toggleCommand, &toggleCommandHandler, 1, nullptr);
+
+            g_announcer = std::make_unique<xa::Announcer>();
+            g_announcer->start();
+            XPLMRegisterFlightLoopCallback(&flightLoopCb, -1.0f, nullptr);
         })) {
         xa::log("start FAILED - the plugin will load but do nothing");
     }
@@ -135,6 +169,8 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
 }
 
 PLUGIN_API void XPluginStop(void) {
+    XPLMUnregisterFlightLoopCallback(&flightLoopCb, nullptr);
+    g_announcer.reset();
     if (g_toggleCommand != nullptr) {
         XPLMUnregisterCommandHandler(g_toggleCommand, &toggleCommandHandler, 1, nullptr);
         g_toggleCommand = nullptr;
@@ -148,9 +184,9 @@ PLUGIN_API void XPluginStop(void) {
 }
 
 PLUGIN_API int XPluginEnable(void) {
-    guarded("enable", [] {
+    guarded(g_fuseEnable, [] {
         if (!g_window) {
-            g_window = std::make_unique<xa::MainWindow>();
+            g_window = std::make_unique<xa::MainWindow>(g_announcer.get());
         }
         // Skeleton milestone: show the window straight away, so "did it load?"
         // is answered without hunting through menus.
@@ -173,6 +209,11 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID /*from*/, int msg, void* /*pa
     switch (msg) {
         case XPLM_MSG_PLANE_LOADED:
             xa::log("message: plane loaded");
+            guarded(g_fuseMessage, [] {
+                if (g_announcer) {
+                    g_announcer->onAircraftLoaded();
+                }
+            });
             break;
         case XPLM_MSG_LIVERY_LOADED:
             xa::log("message: livery loaded");
