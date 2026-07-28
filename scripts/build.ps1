@@ -53,8 +53,18 @@ if ($Install) {
     if (-not (Test-Path (Join-Path $XPlaneDir 'Resources\plugins'))) {
         throw "X-Plane plugins folder not found under '$XPlaneDir'"
     }
-    if (Test-Path $target) { Remove-Item -Recurse -Force $target }
-    Copy-Item -Recurse -Force $staged $target
+    # Only what we ship gets replaced. Wiping the whole folder would take
+    # config.ini with it - the one file in there that belongs to the user and
+    # that we have no way of writing back.
+    foreach ($ours in 'assets', 'win_x64') {
+        $path = Join-Path $target $ours
+        if (Test-Path $path) { Remove-Item -Recurse -Force $path }
+    }
+    if (-not (Test-Path $target)) { New-Item -ItemType Directory -Path $target | Out-Null }
+    Copy-Item -Recurse -Force (Join-Path $staged '*') $target
     Write-Host ""
     Write-Host "Installed to $target" -ForegroundColor Green
+    if (Test-Path (Join-Path $target 'config.ini')) {
+        Write-Host "config.ini left as it was" -ForegroundColor Green
+    }
 }
