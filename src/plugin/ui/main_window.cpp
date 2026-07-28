@@ -65,7 +65,7 @@ void label(const char* text) {
 // the difference between "announce the lights" and "control the lights".
 void switchCell(const char* title, bool* value, const char* explanation,
                 bool* changed) {
-    if (ImGui::Checkbox(title, value)) {
+    if (ui::checkBox(title, value)) {
         *changed = true;
     }
     ImGui::PushTextWrapPos(0.0f);
@@ -276,7 +276,7 @@ void MainWindow::drawLibraryTab() {
 
     core::Settings& settings = announcer_->settings();
     bool automatic = settings.autoAirline();
-    if (ImGui::Checkbox("Определять по ливрее", &automatic)) {
+    if (ui::checkBox("Определять по ливрее", &automatic)) {
         settings.airlineMode = automatic ? "auto" : "manual";
         if (automatic) {
             announcer_->resolveAirline();

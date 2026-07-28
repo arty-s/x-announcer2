@@ -1,6 +1,14 @@
 #include "plugin/ui/theme.h"
 
 #include <cfloat>
+#include <cmath>
+
+// Writing vertices by hand needs two things the public header only forward
+// declares: the shared draw data, for the atlas coordinate of the white pixel,
+// and IM_PI. This is the header ImGui itself points custom widgets at; the
+// alternative is a hand-rolled radial fade with no way to say "solid colour
+// here", which is the whole point of the exercise.
+#include "imgui_internal.h"
 
 #include "plugin/imgui_xp/xp_imgui_window.h"
 
@@ -42,10 +50,57 @@ struct Blob {
 };
 
 const Blob kBlobs[] = {
-    {0.14f, 0.06f, 0.58f, rgb(56, 189, 248), 0.20f},
-    {0.88f, 0.28f, 0.52f, rgb(99, 102, 241), 0.17f},
-    {0.60f, 1.04f, 0.60f, rgb(168, 85, 247), 0.13f},
+    {0.14f, 0.06f, 0.62f, rgb(56, 189, 248), 0.22f},
+    {0.88f, 0.28f, 0.56f, rgb(99, 102, 241), 0.19f},
+    {0.60f, 1.04f, 0.64f, rgb(168, 85, 247), 0.15f},
 };
+
+// A soft round pool of light, faded out by interpolating alpha across the
+// vertices instead of stacking rings of flat colour.
+//
+// Stacked rings were the first attempt and they banded visibly: every ring is a
+// filled polygon with one alpha, so its rim is a hard step no matter how many
+// rings there are - and the polygon edges line up into concentric circles. Here
+// the fade happens between vertices, where the GPU interpolates it, so there are
+// no edges to see. Four rings of vertices approximate the falloff of a blur
+// closely enough that the eye stops looking for the shape.
+void radialGlow(ImDrawList* draw, const ImVec2& centre, float radius, const ImVec4& colour,
+                float peak) {
+    constexpr int kSegments = 64;
+    constexpr int kRings = 4;
+    static const float kStop[kRings + 1] = {0.0f, 0.34f, 0.60f, 0.82f, 1.0f};
+    static const float kFade[kRings + 1] = {1.0f, 0.60f, 0.28f, 0.09f, 0.0f};
+
+    const ImVec2 uv = draw->_Data->TexUvWhitePixel;
+    draw->PrimReserve(kRings * kSegments * 6, (kRings + 1) * kSegments);
+    const unsigned int base = draw->_VtxCurrentIdx;
+
+    for (int ring = 0; ring <= kRings; ++ring) {
+        ImVec4 shade = colour;
+        shade.w = peak * kFade[ring];
+        const ImU32 packed = ImGui::GetColorU32(shade);
+        const float r = radius * kStop[ring];
+        for (int s = 0; s < kSegments; ++s) {
+            const float angle = (static_cast<float>(s) / kSegments) * 2.0f * IM_PI;
+            draw->PrimWriteVtx(ImVec2(centre.x + std::cos(angle) * r,
+                                      centre.y + std::sin(angle) * r),
+                               uv, packed);
+        }
+    }
+    for (int ring = 0; ring < kRings; ++ring) {
+        for (int s = 0; s < kSegments; ++s) {
+            const int next = (s + 1) % kSegments;
+            const unsigned int inner = base + ring * kSegments;
+            const unsigned int outer = base + (ring + 1) * kSegments;
+            draw->PrimWriteIdx(static_cast<ImDrawIdx>(inner + s));
+            draw->PrimWriteIdx(static_cast<ImDrawIdx>(inner + next));
+            draw->PrimWriteIdx(static_cast<ImDrawIdx>(outer + s));
+            draw->PrimWriteIdx(static_cast<ImDrawIdx>(inner + next));
+            draw->PrimWriteIdx(static_cast<ImDrawIdx>(outer + next));
+            draw->PrimWriteIdx(static_cast<ImDrawIdx>(outer + s));
+        }
+    }
+}
 
 }  // namespace
 
@@ -144,20 +199,9 @@ void drawAurora(ImDrawList* draw, const ImVec2& min, const ImVec2& max) {
         return;
     }
 
-    // No blur exists here, so the falloff is built by hand: rings of the same
-    // faint colour stacked from the outside in, so the alpha accumulates towards
-    // the middle. Twenty-four steps is where the banding stops being visible at
-    // these radii; fewer looks like a target, more costs triangles for nothing.
-    constexpr int kSteps = 24;
     for (const Blob& blob : kBlobs) {
-        const ImVec2 centre(min.x + width * blob.x, min.y + height * blob.y);
-        const float radius = width * blob.radius;
-        ImVec4 colour = blob.colour;
-        colour.w = blob.peak / static_cast<float>(kSteps);
-        const ImU32 packed = ImGui::GetColorU32(colour);
-        for (int i = kSteps; i > 0; --i) {
-            draw->AddCircleFilled(centre, radius * static_cast<float>(i) / kSteps, packed, 48);
-        }
+        radialGlow(draw, ImVec2(min.x + width * blob.x, min.y + height * blob.y),
+                   width * blob.radius, blob.colour, blob.peak);
     }
 }
 
@@ -169,22 +213,68 @@ void statusLamp(bool met) {
     const ImVec2 a(pos.x, top);
     const ImVec2 b(pos.x + size, top + size);
     if (met) {
-        // A lit lamp has a halo. Two faint larger rounds under the lamp itself
-        // are the whole trick - it is the only thing on the panel that glows,
-        // which is why the eye finds the satisfied conditions first.
-        ImVec4 halo = kMet;
-        halo.w = 0.16f;
-        const ImU32 packed = ImGui::GetColorU32(halo);
-        draw->AddCircleFilled(ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), size * 1.5f, packed,
-                              20);
-        draw->AddCircleFilled(ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), size * 1.0f, packed,
-                              20);
+        // A lit lamp has a halo, drawn by the same graded pool the aurora uses.
+        // Circles of flat colour were tried and read as rings around the lamp
+        // rather than as light coming off it.
+        radialGlow(draw, ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), size * 2.1f, kMet, 0.34f);
         draw->AddRectFilled(a, b, ImGui::GetColorU32(kMet), 2.0f);
     } else {
         draw->AddRect(a, b, ImGui::GetColorU32(kInkMute), 2.0f, 0, 1.5f);
     }
     // Reserve the space so the caller can simply SameLine() the label.
     ImGui::Dummy(ImVec2(size, ImGui::GetTextLineHeight()));
+}
+
+bool checkBox(const char* label, bool* value) {
+    ImGuiStyle& style = ImGui::GetStyle();
+    const float line = ImGui::GetTextLineHeight();
+    const float box = std::floor(line * 0.98f);
+    const ImVec2 textSize = ImGui::CalcTextSize(label);
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+
+    // The row is a text line tall and the box slightly less, so a switch sits on
+    // the same baseline grid as everything else on the tab.
+    const bool pressed = ImGui::InvisibleButton(
+        label, ImVec2(box + style.ItemInnerSpacing.x + textSize.x, line));
+    if (pressed) {
+        *value = !*value;
+    }
+    const bool hovered = ImGui::IsItemHovered();
+
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const float top = start.y + (line - box) * 0.5f;
+    const ImVec2 a(start.x, top);
+    const ImVec2 b(start.x + box, top + box);
+
+    // Four pixels, not the panel's six: a radius meant for a slider eats most of
+    // a 16 px edge, and what is left of the stroke breaks up into dashes.
+    constexpr float kRadius = 4.0f;
+    if (*value) {
+        draw->AddRectFilled(a, b, ImGui::GetColorU32(kAccent), kRadius);
+    } else {
+        draw->AddRectFilled(a, b, ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 0.24f)), kRadius);
+        // The edge is carried at full strength rather than the glass 14%: on a
+        // shape this small a hairline that faint is indistinguishable from a
+        // dotted one once anti-aliasing has had its say.
+        draw->AddRect(a, b, ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, hovered ? 0.42f : 0.30f)),
+                      kRadius, 0, 1.4f);
+    }
+
+    if (*value) {
+        // Drawn rather than typed: this Roboto subset has no tick glyph, and
+        // ImGui's own tick takes its weight from the font size with no say in
+        // the matter. A cabin panel wants a mark that reads at a glance.
+        const float thickness = box * 0.17f > 2.0f ? box * 0.17f : 2.0f;
+        const ImU32 ink = ImGui::GetColorU32(ImVec4(0.02f, 0.11f, 0.19f, 1.0f));
+        draw->PathLineTo(ImVec2(a.x + box * 0.24f, a.y + box * 0.52f));
+        draw->PathLineTo(ImVec2(a.x + box * 0.43f, a.y + box * 0.72f));
+        draw->PathLineTo(ImVec2(a.x + box * 0.78f, a.y + box * 0.28f));
+        draw->PathStroke(ink, 0, thickness);
+    }
+
+    const ImVec2 textAt(b.x + style.ItemInnerSpacing.x, start.y);
+    draw->AddText(textAt, ImGui::GetColorU32(hovered ? kInk : kInkDim), label);
+    return pressed;
 }
 
 void sectionHeading(const char* text) {

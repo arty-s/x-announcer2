@@ -40,6 +40,13 @@ void drawAurora(ImDrawList* draw, const ImVec2& min, const ImVec2& max);
 // tick mark - and a lamp is what a flight deck would use anyway.
 void statusLamp(bool met);
 
+// A checkbox drawn by hand, because the two things wrong with ImGui's own are
+// both unreachable through the style: its tick takes its weight from the font
+// size, and its frame takes its corner radius from the panel's sliders - at 16
+// pixels that radius consumes the edge and the remaining stroke looks dashed.
+// Returns true on the frame it was toggled.
+bool checkBox(const char* label, bool* value);
+
 // A section heading in the panel's own stencilling: small, dim, letter-spaced,
 // with a hairline under it.
 //
