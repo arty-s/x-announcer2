@@ -99,9 +99,11 @@ void AudioPlayer::start(Voice& voice, Ready& ready, XPLMAudioBus bus, bool loop)
         voice.event.clear();
         return;
     }
-    XPLMSetAudioVolume(voice.channel, voice.gain);
-    log("audio: playing %s (%.1f s, %d Hz, %d ch)", voice.event.c_str(), voice.pcm->seconds(),
-        voice.pcm->sampleRate, voice.pcm->channels);
+    voice.appliedGain = -1.0f;
+    voice.settleFrames = 3;
+    applyGain(voice, "start");
+    log("audio: playing %s (%.1f s, %d Hz, %d ch, gain %.2f)", voice.event.c_str(),
+        voice.pcm->seconds(), voice.pcm->sampleRate, voice.pcm->channels, voice.gain);
 }
 
 void AudioPlayer::playAnnouncement(const std::string& event, const std::string& path, float gain) {
@@ -136,11 +138,27 @@ void AudioPlayer::stopMusic() {
     music_.event.clear();
 }
 
+void AudioPlayer::applyGain(Voice& voice, const char* why) {
+    if (voice.channel == nullptr) {
+        return;
+    }
+    const FMOD_RESULT result = XPLMSetAudioVolume(voice.channel, voice.gain);
+    if (result != FMOD_OK) {
+        log("audio: X-Plane refused the volume %.2f for %s (%s, FMOD result %d)", voice.gain,
+            voice.event.c_str(), why, static_cast<int>(result));
+        return;
+    }
+    voice.appliedGain = voice.gain;
+}
+
+void AudioPlayer::setAnnouncementGain(float gain) {
+    announcement_.gain = gain;
+    applyGain(announcement_, "slider");
+}
+
 void AudioPlayer::setMusicGain(float gain) {
     music_.gain = gain;
-    if (music_.channel != nullptr) {
-        XPLMSetAudioVolume(music_.channel, gain);
-    }
+    applyGain(music_, "slider");
 }
 
 void AudioPlayer::update() {
@@ -155,6 +173,20 @@ void AudioPlayer::update() {
         music_.channel = nullptr;
         music_.pcm.reset();
         music_.event.clear();
+    }
+
+    // Re-assert the volume for a few frames after a channel starts, and whenever
+    // it has drifted from what was asked for.
+    for (Voice* voice : {&announcement_, &music_}) {
+        if (voice->channel == nullptr) {
+            continue;
+        }
+        if (voice->settleFrames > 0) {
+            --voice->settleFrames;
+            applyGain(*voice, "settling");
+        } else if (voice->appliedGain != voice->gain) {
+            applyGain(*voice, "changed");
+        }
     }
 
     std::deque<Ready> decoded;

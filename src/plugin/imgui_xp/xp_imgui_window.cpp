@@ -228,6 +228,21 @@ bool XpImguiWindow::isVisible() const {
     return window_ != nullptr && XPLMGetWindowIsVisible(window_) != 0;
 }
 
+void XpImguiWindow::resizeKeepingCorner(int width, int height) {
+    if (window_ == nullptr) {
+        return;
+    }
+    int left = 0;
+    int top = 0;
+    int right = 0;
+    int bottom = 0;
+    XPLMGetWindowGeometry(window_, &left, &top, &right, &bottom);
+    if (right - left == width && top - bottom == height) {
+        return;
+    }
+    XPLMSetWindowGeometry(window_, left, top, left + width, top - height);
+}
+
 void XpImguiWindow::draw() {
     int right = 0;
     int bottom = 0;

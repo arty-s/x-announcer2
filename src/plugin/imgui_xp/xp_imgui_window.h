@@ -24,6 +24,12 @@ public:
     bool isVisible() const;
     XPLMWindowID id() const { return window_; }
 
+    // Resizes to `width` x `height` boxels keeping the top-left corner where it
+    // is. Scaling the text without this leaves the window the size it was, so a
+    // bigger font simply means less of the panel fits - which is the opposite of
+    // what someone asking for a bigger scale wants.
+    void resizeKeepingCorner(int width, int height);
+
     // Loads the Cyrillic-capable UI font once, shared by every window.
     // Safe to call more than once; returns false if the file is missing.
     static bool loadUiFont(const std::string& ttfPath, float sizePixels);

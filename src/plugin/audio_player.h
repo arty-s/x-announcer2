@@ -37,6 +37,9 @@ public:
 
     void stopAnnouncement();
     void stopMusic();
+    // Both take effect on whatever is playing right now, so dragging the volume
+    // slider is audible immediately instead of "from the next announcement".
+    void setAnnouncementGain(float gain);
     void setMusicGain(float gain);
 
     // Which X-Plane bus each voice goes to. Takes effect on the next sound: a
@@ -56,6 +59,12 @@ private:
         std::shared_ptr<audio::Pcm> pcm;
         FMOD_CHANNEL* channel = nullptr;
         float gain = 1.0f;
+        float appliedGain = -1.0f;
+        // Volume set in the same breath as the channel was created did not stick
+        // - the sound played at full level whatever the slider said. So it is
+        // re-applied on the next few frames as well, once FMOD has really got
+        // the channel going.
+        int settleFrames = 0;
         bool loop = false;
         // Set by the completion callback, which X-Plane calls on the main
         // thread; the channel pointer is invalid from that moment on.
@@ -78,6 +87,11 @@ private:
 
     void worker();
     void start(Voice& voice, Ready& ready, XPLMAudioBus bus, bool loop);
+    // Pushes voice.gain to FMOD and says so if FMOD refuses. The refusal is the
+    // whole point: a volume that silently fails to apply is indistinguishable
+    // from a volume slider that does nothing, which is exactly how this showed
+    // up in the sim.
+    void applyGain(Voice& voice, const char* why);
     static void completionCb(void* refcon, FMOD_RESULT status);
 
     Voice announcement_;

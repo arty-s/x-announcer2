@@ -34,6 +34,9 @@ private:
     void syncTextBuffers();
 
     Announcer* announcer_ = nullptr;
+    // Which scale the window size currently reflects. Applied only when it
+    // changes, so resizing the window by hand is not undone on the next frame.
+    double appliedScale_ = 0.0;
     bool buffersFilled_ = false;
     char libraryBuffer_[512] = {0};
     char languageBuffer_[32] = {0};

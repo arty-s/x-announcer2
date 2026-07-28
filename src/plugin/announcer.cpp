@@ -116,6 +116,7 @@ void Announcer::saveSettings() {
 void Announcer::applySettings() {
     engine_->config() = settings_.flight;
     player_.setBuses(busByName(settings_.announceBus), busByName(settings_.musicBus));
+    player_.setAnnouncementGain(static_cast<float>(settings_.volume));
     player_.setMusicGain(static_cast<float>(settings_.musicVolume));
     duckApplied_ = false;  // recompute the ducking on the next frame
     // Only when it actually changed: this runs from a slider being dragged, and
