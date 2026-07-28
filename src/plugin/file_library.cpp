@@ -6,6 +6,7 @@
 #include <fstream>
 
 #include "audio/pcm.h"
+#include "core/pack_layout.h"
 #include "plugin/xa_log.h"
 
 namespace fs = std::filesystem;
@@ -117,10 +118,11 @@ std::string eventFromFilename(const std::string& filename) {
     return std::string();
 }
 
-int FileSoundLibrary::scan(const std::string& root) {
+int FileSoundLibrary::scan(const std::string& root, const std::string& language) {
     packs_.clear();
     durations_.clear();
     root_ = root;
+    language_ = language;
 
     std::error_code ec;
     if (!fs::is_directory(root, ec)) {
@@ -129,34 +131,65 @@ int FileSoundLibrary::scan(const std::string& root) {
     }
 
     int files = 0;
+    int localised = 0;
     for (const auto& packEntry : fs::directory_iterator(root, ec)) {
         if (ec || !packEntry.is_directory()) {
             continue;
         }
         const std::string packName = packEntry.path().filename().string();
-        Pack pack;
-        for (const auto& fileEntry : fs::recursive_directory_iterator(packEntry.path(), ec)) {
-            if (ec || !fileEntry.is_regular_file()) {
-                continue;
+
+        // One level only, and only one language folder of it - as in 1.x. The
+        // first scan here walked the whole tree, which quietly poured every
+        // language of a multilingual pack into the same bucket and let the
+        // filesystem decide which one was heard.
+        std::vector<std::string> subfolders;
+        for (const auto& entry : fs::directory_iterator(packEntry.path(), ec)) {
+            if (!ec && entry.is_directory()) {
+                subfolders.push_back(entry.path().filename().string());
             }
-            const std::string event = eventFromFilename(fileEntry.path().filename().string());
-            if (event.empty()) {
-                continue;
-            }
-            // First file wins, so a pack with variants is deterministic between
-            // runs. Variant selection is 1.x behaviour still to be ported.
-            pack.events.emplace(event, fileEntry.path().string());
-            ++files;
         }
+        const std::string locale = core::chooseLocaleFolder(subfolders, language);
+
+        Pack pack;
+        // The pack's own folder first: with a variant of the same event in both
+        // places the top-level file wins, which is what "first file wins" meant
+        // before language folders existed.
+        auto absorb = [&](const fs::path& dir) {
+            for (const auto& fileEntry : fs::directory_iterator(dir, ec)) {
+                if (ec || !fileEntry.is_regular_file()) {
+                    continue;
+                }
+                const std::string event = eventFromFilename(fileEntry.path().filename().string());
+                if (event.empty()) {
+                    continue;
+                }
+                // First file wins, so a pack with variants is deterministic
+                // between runs. Variant selection is 1.x behaviour still to be
+                // ported.
+                pack.events.emplace(event, fileEntry.path().string());
+                ++files;
+            }
+        };
+        absorb(packEntry.path());
+        if (!locale.empty()) {
+            absorb(packEntry.path() / locale);
+            pack.language = locale;
+            ++localised;
+        }
+
         if (!pack.events.empty()) {
             packs_.emplace(packName, std::move(pack));
         }
     }
 
     log("library: %zu packs, %d usable files in '%s'", packs_.size(), files, root.c_str());
+    if (localised > 0) {
+        log("library: %d packs have a '%s' language folder", localised, language.c_str());
+    }
     if (!packs_.empty() && packs_.count(pack_) == 0) {
         pack_ = packs_.begin()->first;
-        log("library: playing pack '%s' (airline detection is not ported yet)", pack_.c_str());
+        log("library: no pack chosen yet - standing on '%s' until the airline is known",
+            pack_.c_str());
     }
     return static_cast<int>(packs_.size());
 }
@@ -221,6 +254,11 @@ double FileSoundLibrary::duration(const std::string& event) const {
     }
     durations_[event] = seconds;
     return seconds;
+}
+
+std::string FileSoundLibrary::packLanguage() const {
+    const auto pack = packs_.find(pack_);
+    return pack == packs_.end() ? std::string() : pack->second.language;
 }
 
 std::vector<std::string> FileSoundLibrary::packs() const {

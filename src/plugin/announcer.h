@@ -8,9 +8,11 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "core/airline.h"
 #include "core/engine.h"
+#include "core/settings.h"
 #include "plugin/audio_player.h"
 #include "plugin/file_library.h"
 #include "plugin/sim_state.h"
@@ -20,6 +22,9 @@ namespace xa {
 class Announcer {
 public:
     Announcer();
+    // Flushes settings the user changed in the last couple of seconds; without
+    // it, quitting X-Plane right after moving a slider loses the change.
+    ~Announcer();
 
     void start();
     void onAircraftLoaded();
@@ -39,17 +44,36 @@ public:
     // hand and the user wants automatic detection back.
     void resolveAirline();
 
-    // Off means the pack stays where the user put it.
-    bool autoAirline = true;
+    core::Settings& settings() { return settings_; }
+    const core::Settings& settings() const { return settings_; }
 
-    float volume = 0.85f;
-    float musicVolume = 0.35f;
-    float duck = 0.25f;  // music gain multiplier while an announcement plays
+    // Re-reads config.ini from disk, throwing away unsaved changes.
+    void loadSettings();
+    // Hands the current settings to everything that acts on them: the engine,
+    // the audio buses, the seat belt dataref, the library. Call after changing
+    // anything in settings().
+    void applySettings();
+    void saveSettings();
+
+    // The panel calls this after touching settings(): the change takes effect
+    // now, the file is written a couple of seconds later. Writing on every frame
+    // of a dragged slider would hammer the disk; waiting for the user to press a
+    // button loses the change when the simulator goes down.
+    void settingsChanged(bool rescanLibraryToo = false);
+
+    // Scans the library folder named in the settings, looking in the usual
+    // places when it holds no packs and auto_find allows it.
+    void rescanLibrary();
+
+    // Points the library at the airline we detected, or at the pack the user
+    // pinned by hand when airline_mode is manual.
+    void applyPackChoice();
 
 private:
     void execute(const core::Intent& intent);
-    std::string findLibrary() const;
+    std::vector<std::string> libraryGuesses() const;
 
+    core::Settings settings_;
     SimState sim_;
     FileSoundLibrary library_;
     AudioPlayer player_;
@@ -63,6 +87,10 @@ private:
     double lastWallTime_ = -1.0;
     double tickAccumulator_ = 0.0;
     bool duckApplied_ = false;
+
+    std::string appliedSeatbelt_;  // rebinding datarefs is only worth it on change
+    bool settingsDirty_ = false;
+    double settingsDirtySince_ = 0.0;
 };
 
 }  // namespace xa

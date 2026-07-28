@@ -13,7 +13,11 @@ public:
     // Looks every dataref up once. Must be called after XPluginStart, when the
     // aircraft is loaded, and again whenever the aircraft changes: an add-on's
     // datarefs come and go with it.
-    void bind();
+    //
+    // `seatbeltOverride` is the user's own seat belt dataref from the settings.
+    // If it does not exist on this aircraft the search falls back to the known
+    // ones and says so - a typo there must not leave the cabin sign dead.
+    void bind(const std::string& seatbeltOverride = std::string());
 
     core::Snapshot read() const;
 
@@ -29,7 +33,7 @@ public:
 
     // Which seat belt dataref was found, for the panel to show. Empty means the
     // aircraft publishes none, which is information, not a fault.
-    const char* seatbeltDataref() const { return seatbeltName_; }
+    const char* seatbeltDataref() const { return seatbeltName_.c_str(); }
     bool hasLogoDataref() const { return logo_ != nullptr; }
 
 private:
@@ -59,7 +63,7 @@ private:
     void* localTime_ = nullptr;
 
     void* seatbelt_ = nullptr;
-    const char* seatbeltName_ = "";
+    std::string seatbeltName_;
     int seatbeltOn_ = 1;
 };
 

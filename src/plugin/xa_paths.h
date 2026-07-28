@@ -18,4 +18,9 @@ const std::string& pluginDir();
 // pluginDir() + "/assets/" + relative.
 std::string assetPath(const std::string& relative);
 
+// The settings file: pluginDir() + "/config.ini". Beside the plugin rather than
+// inside assets/, because assets/ is ours to overwrite on every update and this
+// file is the user's.
+std::string configPath();
+
 }  // namespace xa

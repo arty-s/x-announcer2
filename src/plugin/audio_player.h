@@ -39,6 +39,10 @@ public:
     void stopMusic();
     void setMusicGain(float gain);
 
+    // Which X-Plane bus each voice goes to. Takes effect on the next sound: a
+    // channel cannot change bus once it is playing.
+    void setBuses(XPLMAudioBus announcements, XPLMAudioBus music);
+
     // Call once per frame on the main thread: this is where decoded audio is
     // handed to X-Plane.
     void update();
@@ -78,6 +82,11 @@ private:
 
     Voice announcement_;
     Voice music_;
+
+    // The buses the plugin used before the settings file existed; the defaults
+    // in Settings name these two, so a fresh install sounds unchanged.
+    XPLMAudioBus announceBus_ = xplm_AudioInterior;
+    XPLMAudioBus musicBus_ = xplm_AudioExteriorEnvironment;
 
     std::thread thread_;
     std::mutex mutex_;

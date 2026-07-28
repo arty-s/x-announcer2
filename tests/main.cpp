@@ -18,7 +18,10 @@
 #include "airline_test.h"
 #include "audio_test.h"
 #include "core/airline.h"
+#include "core/settings.h"
+#include "pack_layout_test.h"
 #include "scenario.h"
+#include "settings_test.h"
 
 namespace fs = std::filesystem;
 
@@ -105,6 +108,12 @@ int main(int argc, char** argv) {
         if (arg.rfind("--detect-file=", 0) == 0) {
             return detectFromFile(arg.substr(14));
         }
+        // The settings file exactly as a first run would write it, so the
+        // comparison against 1.x can read our defaults without linking us in.
+        if (arg == "--dump-settings") {
+            std::cout << xa::core::writeSettings(xa::core::Settings());
+            return 0;
+        }
     }
 
     fs::path scenarioDir = XA_SCENARIO_DIR;
@@ -142,6 +151,12 @@ int main(int argc, char** argv) {
     std::cout << "\n";
 
     xa::test::runAirlineChecks(XA_AIRLINES_FILE, XA_LIVERY_FILE, &checks, &failed);
+    std::cout << "\n";
+
+    xa::test::runSettingsChecks(&checks, &failed);
+    std::cout << "\n";
+
+    xa::test::runPackLayoutChecks(&checks, &failed);
     std::cout << "\n";
 
     for (const fs::path& file : files) {

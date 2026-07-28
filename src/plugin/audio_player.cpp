@@ -61,6 +61,11 @@ void AudioPlayer::worker() {
     }
 }
 
+void AudioPlayer::setBuses(XPLMAudioBus announcements, XPLMAudioBus music) {
+    announceBus_ = announcements;
+    musicBus_ = music;
+}
+
 void AudioPlayer::completionCb(void* refcon, FMOD_RESULT /*status*/) {
     // Runs on the main thread. Only flags the voice: freeing the buffer here
     // would race with update(), which may be halfway through reading it.
@@ -160,10 +165,10 @@ void AudioPlayer::update() {
     for (Ready& ready : decoded) {
         if (ready.music) {
             stopMusic();
-            start(music_, ready, xplm_AudioExteriorEnvironment, true);
+            start(music_, ready, musicBus_, true);
         } else {
             stopAnnouncement();
-            start(announcement_, ready, xplm_AudioInterior, false);
+            start(announcement_, ready, announceBus_, false);
         }
     }
 }

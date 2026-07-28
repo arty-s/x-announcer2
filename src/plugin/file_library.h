@@ -5,8 +5,9 @@
 //
 //     <library>/<PACK>/<Event>[tags].ogg|mp3|wav
 //
-// Airline detection from the livery is not ported yet, so the pack is chosen by
-// name (or the first one found). That is the next piece of 1.x to bring over.
+// The pack normally follows the airline detected from the livery; the panel can
+// pin it by hand instead. Until the first detection runs there is no airline to
+// follow, so the first pack alphabetically stands in.
 #pragma once
 
 #include <map>
@@ -19,8 +20,9 @@ namespace xa {
 
 class FileSoundLibrary : public core::SoundLibrary {
 public:
-    // Scans `root` for packs. Returns the number of packs found.
-    int scan(const std::string& root);
+    // Scans `root` for packs. `language` names the language sub-folder to read
+    // inside each pack when it has more than one. Returns the number of packs.
+    int scan(const std::string& root, const std::string& language);
 
     // Chooses the pack to play from. An unknown name keeps the current one and
     // says so in the log rather than falling silent.
@@ -40,15 +42,19 @@ public:
 
     const std::string& root() const { return root_; }
     const std::string& pack() const { return pack_; }
+    // Which language folder the current pack is reading, empty if none.
+    std::string packLanguage() const;
     std::vector<std::string> packs() const;
     int eventCount() const;
 
 private:
     struct Pack {
         std::map<std::string, std::string> events;  // event -> absolute path
+        std::string language;                       // language folder read, if any
     };
 
     std::string root_;
+    std::string language_;
     std::string pack_;
     std::map<std::string, Pack> packs_;
 

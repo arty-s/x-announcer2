@@ -56,6 +56,8 @@ endif()
 add_library(xa_core STATIC
     src/core/engine.cpp
     src/core/airline.cpp
+    src/core/settings.cpp
+    src/core/pack_layout.cpp
 )
 target_include_directories(xa_core PUBLIC src)
 if(MSVC)
@@ -70,6 +72,8 @@ add_executable(xa_test
     tests/scenario.cpp
     tests/audio_test.cpp
     tests/airline_test.cpp
+    tests/settings_test.cpp
+    tests/pack_layout_test.cpp
 )
 target_link_libraries(xa_test PRIVATE xa_core xa_audio)
 target_include_directories(xa_test PRIVATE tests)

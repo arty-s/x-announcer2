@@ -6,10 +6,14 @@ namespace xa {
 
 class Announcer;
 
-// The panel. Its job for now is diagnosis, not decoration: it has to show what
-// the plugin sees, what it is waiting for and what it is playing, because that
-// is what a live acceptance run needs. Proper visual work comes with the
-// interface-design pass, once the behaviour is settled.
+// The panel.
+//
+// It is read in a cockpit, over the instruments, in the gaps between things the
+// pilot is actually doing - so it is laid out like a flight-deck panel rather
+// than a settings page: engraved section headings, a fixed label column with the
+// control beside it, and three levels of text (value, label, note) doing the
+// hierarchy instead of size. The phase list on the Flight tab is a crew
+// checklist, which is where that language comes from.
 class MainWindow : public XpImguiWindow {
 public:
     explicit MainWindow(Announcer* announcer);
@@ -20,9 +24,20 @@ protected:
 private:
     void drawFlightTab();
     void drawLibraryTab();
+    void drawSettingsTab();
     void drawLogTab();
 
+    // ImGui edits text in place, so the three free-text settings need buffers of
+    // their own. They are refilled from the settings whenever the file is
+    // re-read, and written back when the field loses focus rather than on every
+    // keystroke - a half-typed folder name is not a folder name.
+    void syncTextBuffers();
+
     Announcer* announcer_ = nullptr;
+    bool buffersFilled_ = false;
+    char libraryBuffer_[512] = {0};
+    char languageBuffer_[32] = {0};
+    char seatbeltBuffer_[160] = {0};
 };
 
 }  // namespace xa

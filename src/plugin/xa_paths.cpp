@@ -52,4 +52,9 @@ std::string assetPath(const std::string& relative) {
     return root + "/assets/" + relative;
 }
 
+std::string configPath() {
+    const std::string& root = pluginDir();
+    return root.empty() ? std::string("config.ini") : root + "/config.ini";
+}
+
 }  // namespace xa

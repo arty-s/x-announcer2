@@ -36,13 +36,17 @@ void reportMissingGlyphs() {
     if (io.Fonts->Fonts.empty()) {
         return;
     }
+    // Only characters the interface actually uses belong here. Probing one we
+    // never draw produces a warning nobody can act on - the arrows U+2190-2193
+    // did exactly that: this build of Roboto-Medium carries 896 glyphs and has
+    // no arrows at all (verified by walking its cmap), so the "widen the ranges"
+    // advice sent the reader after a fix that does not exist.
     ImFont* font = io.Fonts->Fonts[0];
     static const ImWchar kProbe[] = {
         0x0401, 0x0451,          // Ё ё
         0x00AB, 0x00BB,          // « »
         0x2013, 0x2014,          // – —
         0x2026, 0x2116, 0x00B0,  // … № °
-        0x2192,                  // →
         0,
     };
 
@@ -57,8 +61,9 @@ void reportMissingGlyphs() {
     if (missing.empty()) {
         log("font: glyph probe OK");
     } else {
-        log("font: MISSING GLYPHS %s- these render as '?'. Widen the ranges in "
-            "loadUiFont().", missing.c_str());
+        log("font: MISSING GLYPHS %s- these render as '?'. Either the range is "
+            "absent from loadUiFont() or the font file itself has no such glyph "
+            "- check the font before widening ranges.", missing.c_str());
     }
 }
 
@@ -120,11 +125,12 @@ bool XpImguiWindow::loadUiFont(const std::string& ttfPath, float sizePixels) {
     // Cyrillic alone is not enough: Russian prose leans on the em dash, and a
     // codepoint outside the ranges silently renders as '?'. Nothing warns you -
     // this exact hole shipped in the first build and only a human eye caught it.
+    // No arrows: this Roboto-Medium is a 896-glyph subset without U+2190-2193,
+    // so asking for them only made the glyph probe cry wolf every start-up.
     static const ImWchar kPunctuation[] = {
         0x2010, 0x2027,  // dashes, quotation marks, ellipsis
         0x2030, 0x203A,  // per mille, single guillemets
         0x2116, 0x2116,  // numero sign
-        0x2190, 0x2193,  // arrows
         0,
     };
 

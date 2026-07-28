@@ -47,7 +47,7 @@ const char* const kLogoCandidates[] = {
 
 }  // namespace
 
-void SimState::bind() {
+void SimState::bind(const std::string& seatbeltOverride) {
     paused_ = find("sim/time/paused");
     replay_ = find("sim/time/is_in_replay");
     onGround_ = find("sim/flightmodel/failures/onground_any");
@@ -75,16 +75,27 @@ void SimState::bind() {
     }
 
     seatbelt_ = nullptr;
-    seatbeltName_ = "";
-    for (const SeatbeltCandidate& candidate : kSeatbeltCandidates) {
-        if ((seatbelt_ = find(candidate.name)) != nullptr) {
-            seatbeltName_ = candidate.name;
-            seatbeltOn_ = candidate.on;
-            break;
+    seatbeltName_.clear();
+    if (!seatbeltOverride.empty()) {
+        if ((seatbelt_ = find(seatbeltOverride.c_str())) != nullptr) {
+            seatbeltName_ = seatbeltOverride;
+            seatbeltOn_ = 1;
+        } else {
+            log("datarefs: this aircraft has no '%s' - falling back to the known ones",
+                seatbeltOverride.c_str());
+        }
+    }
+    if (seatbelt_ == nullptr) {
+        for (const SeatbeltCandidate& candidate : kSeatbeltCandidates) {
+            if ((seatbelt_ = find(candidate.name)) != nullptr) {
+                seatbeltName_ = candidate.name;
+                seatbeltOn_ = candidate.on;
+                break;
+            }
         }
     }
     log("datarefs: seatbelt %s, logo %s",
-        seatbeltName_[0] != '\0' ? seatbeltName_ : "none published by this aircraft",
+        seatbeltName_.empty() ? "none published by this aircraft" : seatbeltName_.c_str(),
         logo_ != nullptr ? "found" : "none");
 }
 
