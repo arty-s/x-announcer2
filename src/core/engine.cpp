@@ -390,9 +390,12 @@ void Engine::stateMachine(const Snapshot& s) {
             once("CabinDimTakeoff", "night departure");
         }
         if (s.onGround && s.anyEngine() && (s.strobe || s.landingLight)) {
-            if (once("CrewSeatsTakeoff", "lined up")) {
-                setPhase(Phase::Takeoff, "lined up");
-            }
+            // The phase must move whether or not there is a file to play. Until
+            // 2026-07-28 both this and the disembark transition were gated on
+            // the announcement going on the air, so a pack missing one file
+            // stalled the machine - harmless here, but fatal on the stand.
+            once("CrewSeatsTakeoff", "lined up");
+            setPhase(Phase::Takeoff, "lined up");
         }
         if (!s.onGround) {
             setPhase(Phase::Takeoff, "airborne");
@@ -510,9 +513,11 @@ void Engine::stateMachine(const Snapshot& s) {
                 once("DisarmDoors", "on stand");
             }
             if ((!config_.doorCalls || finished("DisarmDoors")) && !s.beacon) {
-                if (once("DisembarkStarted", "doors open")) {
-                    setPhase(Phase::Disembark, "doors open");
-                }
+                // This is the one that mattered: the turnaround reset lives in
+                // DISEMBARK, so a pack without this file left every announcement
+                // marked as already heard and the next flight silent.
+                once("DisembarkStarted", "doors open");
+                setPhase(Phase::Disembark, "doors open");
             }
         }
     }

@@ -16,12 +16,9 @@ set beacon=1 engines=2
 advance 60
 expect phase PUSHBACK
 
-# Lining up does NOT move the phase here, and that is the ported behaviour, not
-# an oversight: TAKEOFF is entered only if the crew-seats call actually goes on
-# the air, and with no pack there is nothing to play. The rotation moves it.
 set strobe=1
 advance 20
-expect phase PUSHBACK
+expect phase TAKEOFF
 
 set on_ground=0 agl_ft=5000 alt_ft=6000 vs_fpm=2000
 advance 30
@@ -45,10 +42,14 @@ expect phase TAXI_IN
 
 set gs_kt=0 engines=0 parkbrake=1 beacon=0
 advance 60
+expect phase DISEMBARK
 
-# KNOWN 1.x BEHAVIOUR, ported deliberately and worth a decision: DISEMBARK is
-# entered only if DisembarkStarted actually plays. A pack without that file
-# therefore parks the machine in TAXI_IN forever - and since the turnaround
-# reset lives in DISEMBARK, a second flight in the same session would start
-# with every announcement already marked as heard. See the note in README.
-expect phase TAXI_IN
+# And the turnaround still resets for the next flight. This is the regression
+# the bench found on 2026-07-28: both transitions used to be gated on the
+# announcement going on the air, so a pack missing DisembarkStarted parked the
+# machine in TAXI_IN forever - and with it the reset, leaving every announcement
+# marked as already heard for the rest of the session.
+# Reaching BOARDING a second time is only possible through that reset: the
+# battery and nav lights never went off, so nothing else could have re-opened it.
+advance 130
+expect phase BOARDING
