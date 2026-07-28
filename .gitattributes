@@ -1,0 +1,7 @@
+# Normalise line endings in the repository. The plugin has to build on Linux and
+# macOS too, so CRLF must never reach a source file there.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.ttf binary
+*.lib binary
+*.xpl binary
