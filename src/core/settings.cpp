@@ -136,6 +136,7 @@ const Help kHelp[] = {
     {"cabin_noise", "фоновый шум салона в полёте, если файл CabinNoise есть в паке"},
     {"auto_boarding", "начинать посадку пассажиров самому по питанию и огням; false - только кнопкой"},
     {"boarding_repeat", "секунд между повторами приветствия при посадке"},
+    {"delay_after", "через сколько секунд посадки объявить задержку вылета; 0 - не объявлять"},
     {"pilot_welcome", "приветствие командира после приветствия бортпроводника"},
     {"door_calls", "объявления про двери: ArmDoors и DisarmDoors"},
     {"night_dim", "объявления про притушенный свет в салоне ночью"},
@@ -223,6 +224,8 @@ Settings parseSettings(const std::string& text, std::vector<std::string>* proble
             parseBool(key, value, &s.flight.autoBoarding, problems);
         } else if (key == "boarding_repeat") {
             parseNumber(key, value, 0.0, 86400.0, &s.flight.boardingRepeat, problems);
+        } else if (key == "delay_after") {
+            parseNumber(key, value, 0.0, 86400.0, &s.flight.delayAfter, problems);
         } else if (key == "pilot_welcome") {
             parseBool(key, value, &s.flight.pilotWelcome, problems);
         } else if (key == "door_calls") {
@@ -274,6 +277,7 @@ std::string writeSettings(const Settings& s) {
         {"cabin_noise", boolean(s.flight.cabinNoise)},
         {"auto_boarding", boolean(s.flight.autoBoarding)},
         {"boarding_repeat", number(s.flight.boardingRepeat)},
+        {"delay_after", number(s.flight.delayAfter)},
         {"pilot_welcome", boolean(s.flight.pilotWelcome)},
         {"door_calls", boolean(s.flight.doorCalls)},
         {"night_dim", boolean(s.flight.nightDim)},

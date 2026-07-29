@@ -16,6 +16,15 @@ struct Config {
     bool landingReaction = true;
 
     double boardingRepeat = 300.0;  // seconds between BoardingWelcome repeats
+
+    // How long boarding may run before the cabin says the departure is delayed.
+    // X-Plane knows nothing about schedules, so "we are still standing here" is
+    // the only delay a plugin can honestly observe. 0 switches it off.
+    //
+    // Fifteen minutes is long enough that an ordinary turnaround never reaches
+    // it, and short enough to be reachable by someone actually waiting - with
+    // boarding_repeat at five minutes it lands after the third welcome.
+    double delayAfter = 900.0;
 };
 
 }  // namespace xa::core

@@ -170,9 +170,16 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
     xa::log("starting - X-Plane %d, XPLM %d", xplaneVersion, xplmVersion);
 
     if (!guarded(g_fuseStart, [] {
-            // 13 px is the body size the scale is built around; the heading and
+            // 16 px is the body size the scale is built around; the heading and
             // focus sizes are derived from it, not chosen separately.
-            xa::XpImguiWindow::loadUiFont(xa::assetPath("fonts/Roboto-Medium.ttf"), 13.0f);
+            //
+            // It was briefly 13, and that was a mistake with a simple shape: the
+            // three-size scale kept the NUMBERS of the old four-size one
+            // (22/16/13) while moving every role down a step, so the heading grew
+            // and everything else - labels, values, the checklist - shrank by a
+            // fifth. This panel is read in a cockpit, over the instruments, in
+            // glances between other work; 13 px is below the floor for that.
+            xa::XpImguiWindow::loadUiFont(xa::assetPath("fonts/Roboto-Medium.ttf"), 16.0f);
 
             const int menuIndex =
                 XPLMAppendMenuItem(XPLMFindPluginsMenu(), kPluginName, nullptr, 0);

@@ -39,7 +39,8 @@ const char* const kEvents[] = {
     "BoardingWelcome", "BoardingWelcomePilot", "BoardingStarted", "BoardingMusic",
     "BoardingComplete", "DepartureDelayed", "ArmDoors", "PreSafetyBriefing",
     "SafetyBriefing", "CabinDimTakeoff", "CrewSeatsTakeoff", "CallCabinSecureTakeoff",
-    "AfterTakeoff", "TopOfClimbPilot", "FastenSeatbelt", "Turbulence",
+    "AfterTakeoff", "TopOfClimbPilot", "CruiseElapsed50Percent", "CruiseElapsed75Percent",
+    "FastenSeatbelt", "Turbulence",
     "TopOfDescentPilot", "DescentSeatbelts", "CabinDimLanding", "BeforeLanding",
     "CrewSeatsLanding", "CallCabinSecureLanding", "AfterLanding", "AfterLandingMusic",
     "DisarmDoors", "DisembarkStarted", "LandingGreat", "LandingTerrible", "CabinNoise",
@@ -168,6 +169,15 @@ std::string chooseLocaleFolder(const std::vector<std::string>& folders,
     // pack that ships English and German must not start speaking German because
     // the filesystem happened to list it first.
     return locales.size() == 1 ? locales.front() : std::string();
+}
+
+std::string chooseBaseFolder(const std::vector<std::string>& folders) {
+    for (const std::string& name : folders) {
+        if (lower(name) == "default") {
+            return name;
+        }
+    }
+    return std::string();
 }
 
 std::string daypartFor(int localHour) {

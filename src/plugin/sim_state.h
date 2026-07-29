@@ -38,6 +38,9 @@ public:
     bool hasLogoDataref() const { return logo_ != nullptr; }
 
 private:
+    // Fills in the destination from the FMS route, or leaves routeKnown false.
+    void readRoute(core::Snapshot* s) const;
+
     struct SeatbeltRef {
         const char* name;
         int onValue;
@@ -62,6 +65,8 @@ private:
     void* engineCount_ = nullptr;
     void* enginesRunning_ = nullptr;
     void* localTime_ = nullptr;
+    void* latitude_ = nullptr;
+    void* longitude_ = nullptr;
 
     void* seatbelt_ = nullptr;
     std::string seatbeltName_;

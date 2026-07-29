@@ -113,6 +113,12 @@ private:
         double turbPeak = 0.0;
         bool wasAirborne = false;
         double lastVs = 0.0;
+        // The route measured once, at liftoff, from where the wheels left the
+        // ground to the last point of the plan. Measuring it every frame would
+        // make the fraction move as the plan is edited in the air, and the
+        // announcement would then be about a route nobody flew.
+        std::optional<double> routeTotalNm;
+        bool routeNoted = false;
     };
 
     void emit(Intent::Kind kind, std::string event, std::string detail);

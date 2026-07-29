@@ -37,7 +37,10 @@ public:
     //   heading ~1.25x  the name of a section, and the largest thing in it
     //   body     1.0x   everything else
     //
-    // At the intended 13 px body that lands on 22 / 16 / 13.
+    // At the intended 16 px body that lands on 27 / 20 / 16. The scale is a
+    // ratio, not three numbers picked by eye: change the body size and the other
+    // two follow. Keeping the old numbers while moving the roles is exactly how
+    // the body once ended up at 13 and the whole panel shrank with it.
     //
     // There were four sizes before, with the section name the SMALLEST and
     // faintest thing on screen - a stencil above brighter, larger content. That

@@ -1,0 +1,55 @@
+# Half the route, then three quarters.
+#
+# Qatar's pack ships CruiseElapsed50Percent and CruiseElapsed75Percent and no
+# branch had a name for them, let alone a trigger - two files that could never
+# play. The destination is the last point of the FMS plan; the route is measured
+# once, at the moment the wheels leave the ground.
+#
+# The geometry is deliberately plain: due south along the 30th meridian, so the
+# distances can be checked by hand. Ten degrees of latitude is 600 nm, which
+# clears the 150 nm floor with room to spare. Half way is 45N, three quarters is
+# 42.5N.
+
+config auto_boarding=1 boarding_music=0 boarding_repeat=100000
+library BoardingStarted BoardingWelcome AfterTakeoff TopOfClimbPilot
+library CruiseElapsed50Percent:15 CruiseElapsed75Percent:15
+
+set hour=12 seatbelt=0
+set lat=50 lon=30 dest=40/30
+
+# ---- off stand and airborne -------------------------------------------------
+set battery=1 nav=1
+advance 20
+expect phase BOARDING
+
+set beacon=1 engines=2
+advance 10
+set strobe=1 landing=1 gs_kt=160
+advance 10
+set on_ground=0 agl_ft=1000 alt_ft=3000 vs_fpm=2400 gs_kt=250
+advance 30
+set agl_ft=29527 alt_ft=30000 vs_fpm=100
+advance 60
+set vs_fpm=0 alt_ft=35000 agl_ft=34777
+advance 60
+expect phase CRUISE
+expect played AfterTakeoff
+
+# ---- a third of the way: too early ------------------------------------------
+# Without this the scenario would pass just as well if the announcement fired the
+# moment the cruise began.
+set lat=46.7
+advance 30
+expect not-played CruiseElapsed50Percent
+
+# ---- half way ---------------------------------------------------------------
+set lat=45
+advance 30
+expect played CruiseElapsed50Percent
+expect not-played CruiseElapsed75Percent
+
+# ---- three quarters ---------------------------------------------------------
+set lat=42.5
+advance 30
+expect played CruiseElapsed75Percent
+expect play-count CruiseElapsed50Percent 1

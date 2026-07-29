@@ -35,7 +35,8 @@ const std::vector<std::string>& soundEventNames() {
         "BoardingStarted", "BoardingWelcome", "BoardingWelcomePilot", "BoardingMusic",
         "DepartureDelayed", "BoardingComplete", "ArmDoors", "PreSafetyBriefing",
         "SafetyBriefing", "CabinDimTakeoff", "CrewSeatsTakeoff", "CallCabinSecureTakeoff",
-        "AfterTakeoff", "TopOfClimbPilot", "FastenSeatbelt", "Turbulence", "CabinNoise",
+        "AfterTakeoff", "TopOfClimbPilot", "CruiseElapsed50Percent",
+        "CruiseElapsed75Percent", "FastenSeatbelt", "Turbulence", "CabinNoise",
         "TopOfDescentPilot", "DescentSeatbelts", "CabinDimLanding", "BeforeLanding",
         "CrewSeatsLanding", "CallCabinSecureLanding", "LandingGreat", "LandingTerrible",
         "AfterLanding", "AfterLandingMusic", "DisarmDoors", "DisembarkStarted",
@@ -101,6 +102,20 @@ int FileSoundLibrary::scan(const std::string& root, const std::string& language)
             absorb(packEntry.path() / locale);
             pack.language = locale;
             ++localised;
+        }
+        // Only now, and only if nothing was found: a pack that keeps its sounds
+        // in a "Default" subfolder instead of its own folder. Reading it whenever
+        // it existed would duplicate every announcement in the packs that carry
+        // both, so an empty result is the whole condition.
+        if (pack.events.empty()) {
+            const std::string base = core::chooseBaseFolder(subfolders);
+            if (!base.empty()) {
+                absorb(packEntry.path() / base);
+                if (!pack.events.empty()) {
+                    log("library: пак '%s' держит звуки в подпапке '%s' - читаю её",
+                        packName.c_str(), base.c_str());
+                }
+            }
         }
 
         if (!pack.events.empty()) {

@@ -39,6 +39,17 @@ struct Snapshot {
     int enginesRunning = 0;
     int localHour = 12;
 
+    // Where we are, and where the flight plan says we are going. The destination
+    // is the last entry of the FMS route; routeKnown is false whenever there is
+    // no plan loaded, which is most short hops and every flight flown by hand.
+    // Two separate facts on purpose: a position is always available, a plan is
+    // not, and the core must never treat a missing plan as "distance zero".
+    double lat = 0.0;
+    double lon = 0.0;
+    bool routeKnown = false;
+    double destLat = 0.0;
+    double destLon = 0.0;
+
     bool anyEngine() const { return enginesRunning > 0; }
     bool allEnginesOff() const { return enginesRunning == 0; }
     bool isDark() const { return localHour >= 21 || localHour < 6; }

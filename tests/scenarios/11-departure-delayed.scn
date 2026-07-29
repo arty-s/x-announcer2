@@ -1,0 +1,32 @@
+# The cabin says the departure is delayed - and says it once.
+#
+# DepartureDelayed sat in the event table of BOTH branches with no condition
+# anywhere that could fire it: a name in the library table, a row in the panel,
+# and a file on disk (Ryanair ships one) that could never be heard. X-Plane knows
+# nothing about schedules, so the only delay a plugin can honestly observe is
+# "we are still standing here", which is what delay_after measures.
+
+config auto_boarding=1 boarding_music=0 boarding_repeat=100000 delay_after=600
+library BoardingStarted BoardingWelcome DepartureDelayed:20
+
+set hour=12 seatbelt=0
+
+# ---- the aircraft wakes up on stand -----------------------------------------
+set battery=1 nav=1
+advance 30
+expect phase BOARDING
+expect played BoardingStarted
+
+# ---- ten minutes have not passed yet ----------------------------------------
+# The half that matters: an ordinary turnaround must never hear this.
+advance 500
+expect phase BOARDING
+expect not-played DepartureDelayed
+
+# ---- past the threshold -----------------------------------------------------
+advance 200
+expect played DepartureDelayed
+
+# ---- and it is not repeated for as long as boarding drags on ----------------
+advance 1200
+expect play-count DepartureDelayed 1

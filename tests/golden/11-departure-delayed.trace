@@ -1,0 +1,4 @@
+     0.0 phase BOARDING (cabin ready)
+     0.5 play BoardingStarted (cabin ready)
+     9.0 play BoardingWelcome (boarding)
+   600.5 play DepartureDelayed (boarding running long)

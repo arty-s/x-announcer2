@@ -23,6 +23,32 @@ const std::map<std::string, double>& eventTtl() {
     return ttl;
 }
 
+// Great-circle distance in nautical miles. A flat-earth approximation would be
+// off by tens of miles on the routes where "half way" is worth announcing at all,
+// and the whole point of the announcement is that the number is believable.
+double distanceNm(double lat1, double lon1, double lat2, double lon2) {
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kEarthRadiusNm = 3440.065;
+    const double toRad = kPi / 180.0;
+    const double dLat = (lat2 - lat1) * toRad;
+    const double dLon = (lon2 - lon1) * toRad;
+    const double a = std::sin(dLat / 2.0) * std::sin(dLat / 2.0) +
+                     std::cos(lat1 * toRad) * std::cos(lat2 * toRad) * std::sin(dLon / 2.0) *
+                         std::sin(dLon / 2.0);
+    return 2.0 * kEarthRadiusNm * std::atan2(std::sqrt(a), std::sqrt(1.0 - a));
+}
+
+// Where the cabin marks the progress of the flight. These are not settings: the
+// fractions are written into the file names the packs ship (Qatar's pack carries
+// CruiseElapsed50Percent and CruiseElapsed75Percent), so a configurable fraction
+// would make the file itself say something untrue.
+constexpr double kCruiseMarkFirst = 0.50;
+constexpr double kCruiseMarkSecond = 0.75;
+
+// Below this the marks are meaningless: on a 40 nm hop half the route is reached
+// while the gear is still coming up.
+constexpr double kCruiseMinNm = 150.0;
+
 std::string formatFeet(double v) {
     // A vertical speed of -0.4 fpm printed as "-0", which reads as a value the
     // sign of which someone is meant to act on. Anything that rounds to zero is
@@ -372,6 +398,13 @@ void Engine::stateMachine(const Snapshot& s) {
             }
         }
 
+        // Standing here long enough that the cabin owes the passengers a word.
+        // The clock is the phase's own, so a flight reset starts it over, and it
+        // is the simulator's clock, so a paused sim does not tick towards it.
+        if (config_.delayAfter > 0.0 && simClock_ - f_.phaseSince >= config_.delayAfter) {
+            once("DepartureDelayed", "boarding running long");
+        }
+
         if (config_.boardingMusic && !music_ && queue_.empty() && !playing_) {
             startMusic("BoardingMusic");
         }
@@ -442,7 +475,34 @@ void Engine::stateMachine(const Snapshot& s) {
         }
     }
 
+    // The route is measured once, as soon as we are airborne and there is a plan
+    // to measure. Measuring on the ground would be wrong for a taxi of any
+    // length, and re-measuring in the air would let an edited plan move the
+    // finish line under an announcement already made.
+    if (!s.onGround && s.routeKnown && !f_.routeTotalNm) {
+        f_.routeTotalNm = distanceNm(s.lat, s.lon, s.destLat, s.destLon);
+        note("route: %.0f nm to the last point of the plan", *f_.routeTotalNm);
+    }
+
     if (f_.phase == Phase::Cruise) {
+        // How much of the route is behind us. Both marks are guarded by once(),
+        // so a flight that crosses three quarters while paused still says it
+        // exactly one time - and a jump straight past both says only the later
+        // one, because announcing "half way" after three quarters is a lie.
+        if (s.routeKnown && f_.routeTotalNm && *f_.routeTotalNm >= kCruiseMinNm) {
+            const double remaining = distanceNm(s.lat, s.lon, s.destLat, s.destLon);
+            const double flown = 1.0 - remaining / *f_.routeTotalNm;
+            if (flown >= kCruiseMarkSecond) {
+                once("CruiseElapsed75Percent", "three quarters of the route flown");
+            } else if (flown >= kCruiseMarkFirst) {
+                once("CruiseElapsed50Percent", "half the route flown");
+            }
+        } else if (f_.routeTotalNm && *f_.routeTotalNm < kCruiseMinNm && !f_.routeNoted) {
+            f_.routeNoted = true;
+            note("route: %.0f nm - too short to mark how much of it is flown",
+                 *f_.routeTotalNm);
+        }
+
         if (s.vsFpm < -500.0 && s.altFt > 20000.0) {
             if (!f_.descentSince) {
                 f_.descentSince = simClock_;

@@ -123,7 +123,7 @@ class Scenario:
 # configured differently and calling the result a match.
 CONFIG_KEYS = {
     "enabled", "boarding_music", "cabin_noise", "auto_boarding", "pilot_welcome",
-    "door_calls", "night_dim", "landing_reaction", "boarding_repeat",
+    "door_calls", "night_dim", "landing_reaction", "boarding_repeat", "delay_after",
 }
 
 BOOLS = {"enabled", "boarding_music", "cabin_noise", "auto_boarding", "pilot_welcome",
@@ -167,6 +167,16 @@ def apply_set(sim, changes: dict[str, str]) -> None:
             sim.set(engines=int(value) > 0)
         elif key == "hour":
             sim.set(local_hour=int(value))
+        elif key in ("lat", "lon"):
+            sim.set(**{key: float(value)})
+        elif key == "dest":
+            # A one-entry FMS plan: the core reads only the last usable point, so
+            # one is enough to state where the flight ends.
+            if value == "none":
+                sim.set(dest=None)
+            else:
+                lat, _, lon = value.partition("/")
+                sim.set(dest=[(float(lat), float(lon))])
         elif key == "paused":
             sim.values["sim/time/paused"] = flag(value)
         elif key == "replay":

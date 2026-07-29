@@ -188,6 +188,7 @@ private:
         else if (key == "night_dim") { config_.nightDim = asBool(value); }
         else if (key == "landing_reaction") { config_.landingReaction = asBool(value); }
         else if (key == "boarding_repeat") { config_.boardingRepeat = std::stod(value); }
+        else if (key == "delay_after") { config_.delayAfter = std::stod(value); }
         else { fail(lineNo, "unknown config key '" + key + "'"); }
     }
 
@@ -210,6 +211,27 @@ private:
         else if (key == "battery") { s.battery = asBool(value); }
         else if (key == "engines") { s.enginesRunning = std::stoi(value); }
         else if (key == "hour") { s.localHour = std::stoi(value); }
+        else if (key == "lat") { s.lat = std::stod(value); }
+        else if (key == "lon") { s.lon = std::stod(value); }
+        else if (key == "dest") {
+            // "dest 55.97/37.41" - where the plan ends. "dest none" is a flight
+            // flown without one, which is the common case and must stay silent
+            // rather than measure a route to nowhere.
+            if (value == "none") {
+                s.routeKnown = false;
+                s.destLat = 0.0;
+                s.destLon = 0.0;
+            } else {
+                const std::size_t slash = value.find('/');
+                if (slash == std::string::npos) {
+                    fail(lineNo, "dest wants lat/lon, or 'none'");
+                } else {
+                    s.routeKnown = true;
+                    s.destLat = std::stod(value.substr(0, slash));
+                    s.destLon = std::stod(value.substr(slash + 1));
+                }
+            }
+        }
         else if (key == "paused") { s.paused = asBool(value); }
         else if (key == "replay") { s.replay = asBool(value); }
         else if (key == "seatbelt") {

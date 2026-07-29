@@ -20,12 +20,16 @@ namespace {
 // longest Russian label at this size; the control column is narrower than the
 // window on purpose, so the eye has a straight edge to run down instead of
 // controls stretching to wherever the window happens to end.
-constexpr float kLabelColumn = 186.0f;
+constexpr float kLabelColumn = 224.0f;
 constexpr float kControlWidth = 200.0f;
 
 // The window at scale 1.0. Everything else is this times the scale.
-constexpr int kBaseWidth = 620;
-constexpr int kBaseHeight = 520;
+//
+// It grew with the body size going back to 16 px: the same content set a fifth
+// larger needs the room, or a bigger typeface would just mean less panel visible
+// - which is the defect the scale slider had before resizeKeepingCorner.
+constexpr int kBaseWidth = 720;
+constexpr int kBaseHeight = 620;
 
 // Three sizes with a job each, and four strengths of the same ink. Size says how
 // far up the page something sits - a tab's subject, a section's name, everything

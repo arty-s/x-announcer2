@@ -23,6 +23,17 @@ bool isLocaleFolder(const std::string& name);
 std::string chooseLocaleFolder(const std::vector<std::string>& folders,
                                const std::string& wanted);
 
+// Some packs put every sound one level down, in a subfolder called "Default",
+// and leave the pack's own folder holding nothing but that. Gulf Air on this
+// machine is exactly that shape: twenty-one files, none of them where a pack
+// keeps them, so the pack was silent and the global Default played in its place.
+//
+// Returns the name of that folder when there is one. The caller reads it ONLY
+// when the pack's own folder yielded nothing: a file sitting properly at the top
+// must always win, and packs that carry both (Ryanair has 22 files in each) would
+// otherwise end up with every announcement duplicated.
+std::string chooseBaseFolder(const std::vector<std::string>& folders);
+
 // ---------------------------------------------------------------- variants --
 //
 // A pack may hold several files for the same announcement, and say in the file

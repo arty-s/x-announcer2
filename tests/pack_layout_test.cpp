@@ -59,6 +59,16 @@ void runPackLayoutChecks(int* checks, int* failed) {
               core::chooseLocaleFolder({"en-us", "de-de"}, "en-us"),
           "the answer does not depend on the order the disk listed them");
 
+    // A pack that keeps its sounds one level down, in "Default".
+    check(core::chooseBaseFolder({"Default"}) == "Default" &&
+              core::chooseBaseFolder({"NoEdit", "default"}) == "default",
+          "a Default subfolder is found whatever its case");
+    check(core::chooseBaseFolder({}).empty() &&
+              core::chooseBaseFolder({"Backup", "NoEdit", "en-us"}).empty(),
+          "and nothing else is mistaken for one");
+    check(!core::isLocaleFolder("Default"),
+          "Default is not a language, or it would have been read all along");
+
     runVariantChecks();
 }
 

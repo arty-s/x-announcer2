@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "XPLMDataAccess.h"
+#include "XPLMNavigation.h"
 #include "XPLMPlanes.h"
 
 #include "plugin/xa_log.h"
@@ -66,6 +67,8 @@ void SimState::bind(const std::string& seatbeltOverride) {
     engineCount_ = find("sim/aircraft/engine/acf_num_engines");
     enginesRunning_ = find("sim/flightmodel/engine/ENGN_running");
     localTime_ = find("sim/time/local_time_sec");
+    latitude_ = find("sim/flightmodel/position/latitude");
+    longitude_ = find("sim/flightmodel/position/longitude");
 
     logo_ = nullptr;
     for (const char* name : kLogoCandidates) {
@@ -186,7 +189,41 @@ core::Snapshot SimState::read() const {
     if (s.localHour < 0 || s.localHour > 23) {
         s.localHour = 12;
     }
+
+    s.lat = latitude_ != nullptr ? XPLMGetDatad(static_cast<XPLMDataRef>(latitude_)) : 0.0;
+    s.lon = longitude_ != nullptr ? XPLMGetDatad(static_cast<XPLMDataRef>(longitude_)) : 0.0;
+    readRoute(&s);
     return s;
+}
+
+// The destination is the last entry of the FMS route. X-Plane publishes no
+// dataref for it - only relative bearings and DME to whatever is tuned - so the
+// Navigation API is the only honest source, and a plan that is not there has to
+// come back as "unknown" rather than as a distance of zero.
+void SimState::readRoute(core::Snapshot* s) const {
+    const int count = XPLMCountFMSEntries();
+    if (count <= 0) {
+        return;
+    }
+    // Walk back from the end: the tail of a plan can hold entries with no
+    // navaid and no coordinates, and one of those would put the destination in
+    // the Gulf of Guinea - latitude zero, longitude zero.
+    for (int i = count - 1; i >= 0; --i) {
+        XPLMNavType type = xplm_Nav_Unknown;
+        char id[256] = {0};
+        XPLMNavRef ref = XPLM_NAV_NOT_FOUND;
+        int altitude = 0;
+        float lat = 0.0f;
+        float lon = 0.0f;
+        XPLMGetFMSEntryInfo(i, &type, id, &ref, &altitude, &lat, &lon);
+        if (type == xplm_Nav_Unknown || (lat == 0.0f && lon == 0.0f)) {
+            continue;
+        }
+        s->routeKnown = true;
+        s->destLat = lat;
+        s->destLon = lon;
+        return;
+    }
 }
 
 }  // namespace xa
