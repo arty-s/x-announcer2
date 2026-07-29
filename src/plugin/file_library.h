@@ -15,11 +15,23 @@
 #include <vector>
 
 #include "core/library.h"
+#include "core/pack_layout.h"
 
 namespace xa {
 
 class FileSoundLibrary : public core::SoundLibrary {
 public:
+    // What the panel needs to show one row of the library: how many files this
+    // pack has for the event, which pack the sound would actually come from, and
+    // the name of the file that would play.
+    struct Coverage {
+        std::string event;
+        int own = 0;       // files in the selected pack
+        int fallback = 0;  // files in Default
+        std::string source;  // pack the file comes from, empty when there is none
+        std::string file;    // file name that would play
+    };
+
     // Scans `root` for packs. `language` names the language sub-folder to read
     // inside each pack when it has more than one. Returns the number of packs.
     int scan(const std::string& root, const std::string& language);
@@ -34,10 +46,23 @@ public:
     // report itself as undetected.
     void selectPackForAirline(const std::string& icao);
 
+    // The aeroplane being flown and the time of day, which is what decides
+    // between [Night] and [A320] variants of the same announcement. Changing
+    // either re-picks the files, so the panel never shows one and plays another.
+    void setPlayContext(const core::PlayContext& context);
+    const core::PlayContext& playContext() const { return context_; }
+
+    // Moves to the next variant of every event that has more than one. Called
+    // once per flight rather than per announcement: within a flight the choice
+    // has to hold still, because the length of the file is measured when the
+    // announcement is scheduled and the file itself is opened a moment later.
+    void nextVariantRound();
+
     bool has(const std::string& event) const override;
     double duration(const std::string& event) const override;
 
-    // Absolute path of the file that would play, or empty.
+    // Absolute path of the file that would play, or empty. Falls back to the
+    // Default pack, as 1.x does, when the selected pack has nothing.
     std::string pathFor(const std::string& event) const;
 
     const std::string& root() const { return root_; }
@@ -47,16 +72,30 @@ public:
     std::vector<std::string> packs() const;
     int eventCount() const;
 
+    // Every canonical event with what the current pack can do about it, in the
+    // order the flight goes through them. This is the library tab.
+    std::vector<Coverage> coverage() const;
+
 private:
-    struct Pack {
-        std::map<std::string, std::string> events;  // event -> absolute path
-        std::string language;                       // language folder read, if any
+    struct Entry {
+        std::string path;
+        core::SoundVariant variant;
     };
+    struct Pack {
+        std::map<std::string, std::vector<Entry>> events;  // event -> its files
+        std::string language;                              // language folder read, if any
+    };
+
+    // Which pack and which file an event resolves to right now, or nulls.
+    const Entry* resolve(const std::string& event, std::string* fromPack) const;
+    const Entry* pickFrom(const Pack& pack, const std::string& event) const;
 
     std::string root_;
     std::string language_;
     std::string pack_;
     std::map<std::string, Pack> packs_;
+    core::PlayContext context_;
+    unsigned round_ = 0;
 
     // Probing opens the file, so the answer is remembered. Announcements are
     // asked for their length exactly when they start, and a disk read there is
@@ -64,8 +103,7 @@ private:
     mutable std::map<std::string, double> durations_;
 };
 
-// "AfterTakeoff[Night][2].ogg" -> "AfterTakeoff". Returns empty if the name is
-// not one of the canonical events; unknown files are ignored, never guessed at.
-std::string eventFromFilename(const std::string& filename);
+// The canonical events in flight order, for the panel's library table.
+const std::vector<std::string>& soundEventNames();
 
 }  // namespace xa

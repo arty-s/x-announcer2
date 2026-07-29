@@ -121,6 +121,9 @@ SimState::Identity SimState::readIdentity() const {
     identity.liveryPath = readString("sim/aircraft/view/acf_livery_path");
     identity.tailNumber = readString("sim/aircraft/view/acf_tailnum");
     identity.description = readString("sim/aircraft/view/acf_descrip");
+    // What the aeroplane calls itself: A320, B738, CL60. Packs tag files with
+    // it, so it decides between SafetyBriefing[A320] and the plain one.
+    identity.icao = readString("sim/aircraft/view/acf_ICAO");
 
     char fileName[256] = {0};
     char filePath[1024] = {0};

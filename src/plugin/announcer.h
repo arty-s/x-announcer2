@@ -89,6 +89,9 @@ private:
 
     core::AirlineVerdict airline_;
     std::string lastLivery_;
+    // Read when the aeroplane loads rather than per frame: it cannot change
+    // without a load, and it is a string dataref either way.
+    std::string aircraftIcao_;
     core::Snapshot snapshot_;
     double lastSimTime_ = -1.0;
     double lastWallTime_ = -1.0;

@@ -24,7 +24,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE = ROOT / "src" / "core" / "engine.cpp"
+LAYOUT = ROOT / "src" / "core" / "pack_layout.cpp"
 PANEL = ROOT / "src" / "plugin" / "ui" / "main_window.cpp"
+
+
+def daypart_strings(text):
+    """The times of day, which the panel also shows and the core also names."""
+    body = re.search(r"daypartFor\(int[^)]*\)\s*\{(.*?)\n\}", text, re.S)
+    if not body:
+        raise SystemExit("cannot find daypartFor in pack_layout.cpp - update this check")
+    return set(re.findall(r'return\s+"([^"]+)"', body.group(1)))
 
 
 def core_strings(text):
@@ -50,6 +59,7 @@ def table_keys(text):
 
 def main():
     wanted = core_strings(ENGINE.read_text(encoding="utf-8"))
+    wanted |= daypart_strings(LAYOUT.read_text(encoding="utf-8"))
     have = table_keys(PANEL.read_text(encoding="utf-8"))
 
     missing = sorted(wanted - have)

@@ -28,6 +28,7 @@ public:
         std::string tailNumber;
         std::string aircraftFile;
         std::string description;
+        std::string icao;  // A320, B738 - what the pack's [tags] are matched against
     };
     Identity readIdentity() const;
 

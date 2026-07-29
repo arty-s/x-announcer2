@@ -118,6 +118,11 @@ std::string translated(const std::string& text) {
         {"below 60 kt", "медленнее 60 уз"},
         {"brake set or stopped", "стояночный тормоз или стоит"},
         {"turnaround", "оборот"},
+        // Times of day, as the pack's [Night] tags name them.
+        {"morning", "утро"},
+        {"afternoon", "день"},
+        {"evening", "вечер"},
+        {"night", "ночь"},
         // The name of the phase being waited for. Stored upper case because its
         // one use is inside a stencilled heading, and upper-casing Cyrillic at
         // run time needs a locale this plugin has no business setting.
@@ -340,77 +345,132 @@ void MainWindow::drawFlightTab() {
 
 void MainWindow::drawLibraryTab() {
     FileSoundLibrary& library = announcer_->library();
-    ImGui::TextWrapped("Папка: %s", library.root().c_str());
-    ImGui::Text("Паков: %zu, в выбранном объявлений: %d",
-                library.packs().size(), library.eventCount());
-    if (!library.packLanguage().empty()) {
-        ImGui::TextDisabled("  язык пака: %s", library.packLanguage().c_str());
-    }
-    ImGui::Separator();
-
-    // Recognising the airline and owning its sounds are shown as two separate
-    // lines on purpose. Reporting "not detected" when the airline was in fact
-    // recognised but unowned is the exact defect this port had to preserve a fix
-    // for, and a panel that blurs the two invites it straight back.
-    const core::AirlineVerdict& airline = announcer_->airline();
-    const std::string name = announcer_->airlines().nameOf(airline.code);
-    ImGui::Text("Авиакомпания: %s%s", airline.code.c_str(),
-                name.empty() ? "" : (" — " + name).c_str());
-    ImGui::TextDisabled("  как определено: %s", airline.source.c_str());
-    if (airline.code != "Default" && library.pack() != airline.code) {
-        ImGui::TextDisabled("  пака нет, играет «%s»", library.pack().c_str());
-    }
-
     core::Settings& settings = announcer_->settings();
-    bool automatic = settings.autoAirline();
-    if (ui::checkBox("Определять по ливрее", &automatic)) {
-        settings.airlineMode = automatic ? "auto" : "manual";
-        if (automatic) {
-            announcer_->resolveAirline();
-        } else {
-            // Pinning starts from whatever is playing now, so switching to
-            // manual never silently changes the pack under the user.
-            settings.airlineManual = library.pack();
+    const core::AirlineVerdict& airline = announcer_->airline();
+    const std::vector<std::string> packNames = library.packs();
+
+    // The pack is picked from a list rather than a column of radio buttons: with
+    // thirty packs on disk the column was most of the tab, and the one line that
+    // matters - which pack is playing - was somewhere inside it.
+    const std::string airlineName = announcer_->airlines().nameOf(airline.code);
+    std::string preview;
+    if (settings.autoAirline()) {
+        preview = "Авто — " + library.pack();
+        if (!airlineName.empty()) {
+            preview += "  (" + airlineName + ")";
         }
-        announcer_->settingsChanged();
+    } else {
+        preview = settings.airlineManual;
     }
-    ImGui::BeginDisabled(automatic);
-    for (const std::string& packName : library.packs()) {
-        const bool selected = packName == library.pack();
-        if (ImGui::RadioButton(packName.c_str(), selected) && !selected) {
-            library.selectPack(packName);
-            settings.airlineManual = packName;
+
+    label("Набор звуков");
+    if (ImGui::BeginCombo("##pack", preview.c_str())) {
+        if (ImGui::Selectable("Авто — по ливрее", settings.autoAirline())) {
+            settings.airlineMode = "auto";
+            announcer_->resolveAirline();
             announcer_->settingsChanged();
         }
-    }
-    ImGui::EndDisabled();
-
-    ImGui::Separator();
-    ImGui::TextDisabled("Проверка звука без полёта:");
-    static const char* const kProbeEvents[] = {"BoardingWelcome", "SafetyBriefing",
-                                               "CrewSeatsTakeoff", "AfterLanding"};
-    for (const char* event : kProbeEvents) {
-        const bool available = library.has(event);
-        ImGui::BeginDisabled(!available);
-        if (ImGui::Button(event)) {
-            announcer_->player().playAnnouncement(
-                event, library.pathFor(event), static_cast<float>(settings.volume));
-            log("UI: ручное воспроизведение %s", event);
+        for (const std::string& packName : packNames) {
+            const std::string caption = announcer_->airlines().nameOf(packName).empty()
+                                            ? packName
+                                            : packName + "  —  " +
+                                                  announcer_->airlines().nameOf(packName);
+            const bool chosen = !settings.autoAirline() && settings.airlineManual == packName;
+            if (ImGui::Selectable(caption.c_str(), chosen)) {
+                settings.airlineMode = "manual";
+                settings.airlineManual = packName;
+                library.selectPack(packName);
+                announcer_->settingsChanged();
+            }
         }
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        if (available) {
-            ImGui::TextDisabled("%.1f с", library.duration(event));
-        } else {
-            ImGui::TextDisabled("нет в паке");
-        }
-    }
-    if (ImGui::Button("Стоп")) {
-        announcer_->player().stopAnnouncement();
+        ImGui::EndCombo();
     }
     ImGui::SameLine();
     if (ImGui::Button("Пересканировать")) {
         announcer_->rescanLibrary();
+    }
+
+    // Recognising the airline and owning its sounds stay two separate lines.
+    // Reporting "not detected" when the airline WAS recognised but has no pack
+    // is the exact defect this port had to preserve a fix for.
+    small(("Ливрея: " + airline.code + (airlineName.empty() ? "" : " — " + airlineName) +
+           ", определено по: " + airline.source)
+              .c_str());
+    if (airline.code != "Default" && library.pack() != airline.code) {
+        small(("Пака для " + airline.code + " нет — играет «" + library.pack() + "».").c_str());
+    }
+    if (!library.packLanguage().empty()) {
+        small(("Язык внутри пака: " + library.packLanguage()).c_str());
+    }
+    const core::PlayContext& context = library.playContext();
+    small(("Варианты файлов выбираются под " +
+           (context.aircraft.empty() ? std::string("неизвестный борт") : context.aircraft) + ", " +
+           translated(context.daypart))
+              .c_str());
+
+    section("ОБЪЯВЛЕНИЯ В НАБОРЕ");
+    if (packNames.empty()) {
+        ImGui::TextColored(kAccent, "В папке нет ни одного набора звуков.");
+        return;
+    }
+
+    const bool playing = announcer_->player().announcementActive();
+    const std::string playingEvent = announcer_->player().announcementEvent();
+
+    // A table, not a list: the question is never "does this event exist" alone
+    // but "how many files, from which pack, and which one right now" - four
+    // answers that only line up when they are in columns.
+    const ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
+                                  ImGuiTableFlags_SizingStretchProp;
+    if (ImGui::BeginTable("events", 4, flags, ImVec2(0.0f, 0.0f))) {
+        ImGui::TableSetupColumn("Объявление", ImGuiTableColumnFlags_WidthStretch, 0.40f);
+        ImGui::TableSetupColumn("Файлов", ImGuiTableColumnFlags_WidthStretch, 0.12f);
+        ImGui::TableSetupColumn("Откуда", ImGuiTableColumnFlags_WidthStretch, 0.20f);
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch, 0.28f);
+        ImGui::TableSetupScrollFreeze(0, 1);
+        ImGui::TableHeadersRow();
+
+        for (const FileSoundLibrary::Coverage& row : library.coverage()) {
+            const bool available = !row.source.empty();
+            ImGui::TableNextRow();
+
+            ImGui::TableNextColumn();
+            ImGui::TextColored(available ? ui::kInk : kInkMute, "%s", row.event.c_str());
+            // Which file, and how long it is, only for the row under the
+            // cursor. Measuring a file means opening it, and measuring all
+            // twenty-nine the moment this tab appears is a stutter in the frame
+            // - the one thing a plugin must not cost a pilot on approach.
+            if (available && !row.file.empty() && ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s\n%.0f с", row.file.c_str(), library.duration(row.event));
+            }
+
+            ImGui::TableNextColumn();
+            const int count = row.own > 0 ? row.own : row.fallback;
+            ImGui::TextColored(available ? kInkDim : kInkMute, "%d", count);
+
+            ImGui::TableNextColumn();
+            // Green only when the sound is the airline's own; a stand-in from
+            // Default is stated, not dressed up as a hit.
+            ImGui::TextColored(row.own > 0 ? kMet : kInkMute, "%s",
+                               available ? row.source.c_str() : "—");
+
+            ImGui::TableNextColumn();
+            ImGui::PushID(row.event.c_str());
+            if (playing && playingEvent == row.event) {
+                if (ImGui::SmallButton("стоп")) {
+                    announcer_->player().stopAnnouncement();
+                }
+            } else if (available) {
+                if (ImGui::SmallButton("играть")) {
+                    announcer_->player().playAnnouncement(
+                        row.event, library.pathFor(row.event),
+                        static_cast<float>(settings.volume));
+                    log("UI: ручное воспроизведение %s", row.event.c_str());
+                }
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
     }
 }
 

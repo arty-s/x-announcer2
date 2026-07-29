@@ -14,52 +14,10 @@ namespace fs = std::filesystem;
 namespace xa {
 namespace {
 
-// The canonical events, exactly as 1.x knows them.
-const char* const kEvents[] = {
-    "BoardingWelcome", "BoardingWelcomePilot", "BoardingStarted", "BoardingMusic",
-    "BoardingComplete", "DepartureDelayed", "ArmDoors", "PreSafetyBriefing",
-    "SafetyBriefing", "CabinDimTakeoff", "CrewSeatsTakeoff", "CallCabinSecureTakeoff",
-    "AfterTakeoff", "TopOfClimbPilot", "FastenSeatbelt", "Turbulence",
-    "TopOfDescentPilot", "DescentSeatbelts", "CabinDimLanding", "BeforeLanding",
-    "CrewSeatsLanding", "CallCabinSecureLanding", "AfterLanding", "AfterLandingMusic",
-    "DisarmDoors", "DisembarkStarted", "LandingGreat", "LandingTerrible", "CabinNoise",
-};
-
 std::string lower(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return s;
-}
-
-std::string trim(const std::string& s) {
-    const std::size_t first = s.find_first_not_of(" \t");
-    if (first == std::string::npos) {
-        return std::string();
-    }
-    const std::size_t last = s.find_last_not_of(" \t");
-    return s.substr(first, last - first + 1);
-}
-
-const std::map<std::string, std::string>& eventsByKey() {
-    static const std::map<std::string, std::string> table = [] {
-        std::map<std::string, std::string> t;
-        for (const char* name : kEvents) {
-            t[lower(name)] = name;
-        }
-        // The spelling variants community packs actually ship, carried over
-        // from 1.x where they were collected the hard way.
-        t["fastenseatbelts"] = "FastenSeatbelt";
-        t["cabindim"] = "CabinDimTakeoff";
-        t["topofdecentpilot"] = "TopOfDescentPilot";
-        t["welcomeaboard"] = "BoardingWelcome";
-        return t;
-    }();
-    return table;
-}
-
-bool isAudioExtension(const std::string& ext) {
-    const std::string e = lower(ext);
-    return e == ".ogg" || e == ".mp3" || e == ".wav" || e == ".flac";
 }
 
 std::vector<uint8_t> readFile(const std::string& path) {
@@ -70,52 +28,19 @@ std::vector<uint8_t> readFile(const std::string& path) {
 
 }  // namespace
 
-std::string eventFromFilename(const std::string& filename) {
-    const std::size_t dot = filename.find_last_of('.');
-    if (dot == std::string::npos || !isAudioExtension(filename.substr(dot))) {
-        return std::string();
-    }
-    std::string base = filename.substr(0, dot);
-
-    // Strip [tags]: aircraft codes, time of day, variant numbers.
-    std::string stripped;
-    int depth = 0;
-    for (const char c : base) {
-        if (c == '[') {
-            ++depth;
-        } else if (c == ']') {
-            if (depth > 0) {
-                --depth;
-            }
-        } else if (depth == 0) {
-            stripped.push_back(c);
-        }
-    }
-    // Some packs write "AfterTakeoff.ogg[A359][2].ogg".
-    const std::size_t stray = stripped.find_last_of('.');
-    if (stray != std::string::npos && isAudioExtension(stripped.substr(stray))) {
-        stripped = stripped.substr(0, stray);
-    }
-    stripped = trim(stripped);
-
-    const auto& table = eventsByKey();
-    auto it = table.find(lower(stripped));
-    if (it != table.end()) {
-        return it->second;
-    }
-
-    // "SafetyBriefing1" / "BoardingMusic 2" - a trailing variant number.
-    std::size_t end = stripped.size();
-    while (end > 0 && std::isdigit(static_cast<unsigned char>(stripped[end - 1]))) {
-        --end;
-    }
-    if (end < stripped.size()) {
-        it = table.find(lower(trim(stripped.substr(0, end))));
-        if (it != table.end()) {
-            return it->second;
-        }
-    }
-    return std::string();
+const std::vector<std::string>& soundEventNames() {
+    // Flight order, not alphabetical: the library table is read down the page
+    // the way the flight is flown, so a gap in it is a gap in a leg.
+    static const std::vector<std::string> names = {
+        "BoardingStarted", "BoardingWelcome", "BoardingWelcomePilot", "BoardingMusic",
+        "DepartureDelayed", "BoardingComplete", "ArmDoors", "PreSafetyBriefing",
+        "SafetyBriefing", "CabinDimTakeoff", "CrewSeatsTakeoff", "CallCabinSecureTakeoff",
+        "AfterTakeoff", "TopOfClimbPilot", "FastenSeatbelt", "Turbulence", "CabinNoise",
+        "TopOfDescentPilot", "DescentSeatbelts", "CabinDimLanding", "BeforeLanding",
+        "CrewSeatsLanding", "CallCabinSecureLanding", "LandingGreat", "LandingTerrible",
+        "AfterLanding", "AfterLandingMusic", "DisarmDoors", "DisembarkStarted",
+    };
+    return names;
 }
 
 int FileSoundLibrary::scan(const std::string& root, const std::string& language) {
@@ -159,14 +84,15 @@ int FileSoundLibrary::scan(const std::string& root, const std::string& language)
                 if (ec || !fileEntry.is_regular_file()) {
                     continue;
                 }
-                const std::string event = eventFromFilename(fileEntry.path().filename().string());
-                if (event.empty()) {
+                const std::string name = fileEntry.path().filename().string();
+                std::string event;
+                core::SoundVariant variant;
+                if (!core::parseSoundFile(name, &event, &variant)) {
                     continue;
                 }
-                // First file wins, so a pack with variants is deterministic
-                // between runs. Variant selection is 1.x behaviour still to be
-                // ported.
-                pack.events.emplace(event, fileEntry.path().string());
+                // Every file is kept, tags and all. Which of them plays is
+                // decided later, against the aeroplane and the clock.
+                pack.events[event].push_back(Entry{fileEntry.path().string(), variant});
                 ++files;
             }
         };
@@ -227,13 +153,104 @@ void FileSoundLibrary::selectPackForAirline(const std::string& icao) {
         icao.c_str(), pack_.c_str());
 }
 
-std::string FileSoundLibrary::pathFor(const std::string& event) const {
-    const auto pack = packs_.find(pack_);
-    if (pack == packs_.end()) {
-        return std::string();
+void FileSoundLibrary::setPlayContext(const core::PlayContext& context) {
+    if (context.aircraft == context_.aircraft && context.daypart == context_.daypart) {
+        return;
     }
-    const auto file = pack->second.events.find(event);
-    return file == pack->second.events.end() ? std::string() : file->second;
+    context_ = context;
+    // The choice may now fall on a different file, so the remembered lengths
+    // belong to nothing. Keeping them would time a night greeting by the length
+    // of the day one.
+    durations_.clear();
+    log("library: choosing files for %s, %s",
+        context_.aircraft.empty() ? "unknown aircraft" : context_.aircraft.c_str(),
+        context_.daypart.c_str());
+}
+
+void FileSoundLibrary::nextVariantRound() {
+    ++round_;
+    durations_.clear();
+}
+
+const FileSoundLibrary::Entry* FileSoundLibrary::pickFrom(const Pack& pack,
+                                                          const std::string& event) const {
+    const auto found = pack.events.find(event);
+    if (found == pack.events.end() || found->second.empty()) {
+        return nullptr;
+    }
+    std::vector<core::SoundVariant> variants;
+    variants.reserve(found->second.size());
+    for (const Entry& entry : found->second) {
+        variants.push_back(entry.variant);
+    }
+    const int index = core::chooseVariant(variants, context_, round_);
+    return index < 0 ? nullptr : &found->second[static_cast<std::size_t>(index)];
+}
+
+const FileSoundLibrary::Entry* FileSoundLibrary::resolve(const std::string& event,
+                                                         std::string* fromPack) const {
+    const auto pack = packs_.find(pack_);
+    if (pack != packs_.end()) {
+        if (const Entry* entry = pickFrom(pack->second, event)) {
+            if (fromPack != nullptr) {
+                *fromPack = pack->first;
+            }
+            return entry;
+        }
+    }
+    // The airline's own pack may cover only part of the flight, so Default
+    // stands in for the rest - per event, as in 1.x, not per pack.
+    for (const auto& [name, candidate] : packs_) {
+        if (lower(name) != "default" || name == pack_) {
+            continue;
+        }
+        if (const Entry* entry = pickFrom(candidate, event)) {
+            if (fromPack != nullptr) {
+                *fromPack = name;
+            }
+            return entry;
+        }
+    }
+    return nullptr;
+}
+
+std::string FileSoundLibrary::pathFor(const std::string& event) const {
+    const Entry* entry = resolve(event, nullptr);
+    return entry == nullptr ? std::string() : entry->path;
+}
+
+std::vector<FileSoundLibrary::Coverage> FileSoundLibrary::coverage() const {
+    std::vector<Coverage> rows;
+    const auto selected = packs_.find(pack_);
+    const Pack* fallbackPack = nullptr;
+    for (const auto& [name, pack] : packs_) {
+        if (lower(name) == "default") {
+            fallbackPack = &pack;
+            break;
+        }
+    }
+
+    for (const std::string& event : soundEventNames()) {
+        Coverage row;
+        row.event = event;
+        if (selected != packs_.end()) {
+            const auto found = selected->second.events.find(event);
+            if (found != selected->second.events.end()) {
+                row.own = static_cast<int>(found->second.size());
+            }
+        }
+        if (fallbackPack != nullptr) {
+            const auto found = fallbackPack->events.find(event);
+            if (found != fallbackPack->events.end()) {
+                row.fallback = static_cast<int>(found->second.size());
+            }
+        }
+        if (const Entry* entry = resolve(event, &row.source)) {
+            row.file = entry->variant.name;
+        }
+        rows.push_back(std::move(row));
+    }
+    return rows;
 }
 
 bool FileSoundLibrary::has(const std::string& event) const { return !pathFor(event).empty(); }

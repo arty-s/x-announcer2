@@ -178,6 +178,7 @@ void Announcer::onAircraftLoaded() {
     // rather than trusted. The seat belt sign in particular is aircraft-specific.
     sim_.bind(settings_.seatbeltDref);
     lastLivery_.clear();  // force a fresh verdict for the new aeroplane
+    aircraftIcao_ = sim_.readIdentity().icao;
     // And the flight starts over. Nothing in the datarefs says the aeroplane was
     // replaced - it is parked before and after - so this message is the only
     // signal there is.
@@ -253,6 +254,9 @@ void Announcer::execute(const core::Intent& intent) {
             break;
         case Kind::FlightReset:
             log("flight reset (%s) -> %s", intent.detail.c_str(), intent.event.c_str());
+            // A new flight draws the next variant of every announcement that has
+            // more than one, so a pack with three greetings is not down to one.
+            library_.nextVariantRound();
             break;
         case Kind::Note:
             log("%s", intent.detail.c_str());
@@ -272,6 +276,14 @@ void Announcer::frame() {
             resolveAirline();
         }
     }
+
+    // What the pack's [A320] and [Night] tags are matched against. The library
+    // ignores a context it already has, so this costs a string compare per frame
+    // and re-picks the files exactly when the hour or the aeroplane turns over.
+    core::PlayContext context;
+    context.aircraft = aircraftIcao_;
+    context.daypart = core::daypartFor(snapshot_.localHour);
+    library_.setPlayContext(context);
 
     const double simNow = simSeconds();
     const double wallNow = wallSeconds();
