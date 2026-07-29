@@ -445,14 +445,22 @@ void MainWindow::drawLibraryTab() {
             }
 
             ImGui::TableNextColumn();
-            const int count = row.own > 0 ? row.own : row.fallback;
+            const int count = row.own > 0 ? row.own : (available ? row.fallback : 0);
             ImGui::TextColored(available ? kInkDim : kInkMute, "%d", count);
 
             ImGui::TableNextColumn();
             // Green only when the sound is the airline's own; a stand-in from
-            // Default is stated, not dressed up as a hit.
-            ImGui::TextColored(row.own > 0 ? kMet : kInkMute, "%s",
-                               available ? row.source.c_str() : "—");
+            // Default is stated, not dressed up as a hit. And when the row is
+            // silent only because the user switched the stand-in off, it says
+            // so - an empty row that Default could have filled otherwise looks
+            // like a broken pack.
+            if (available) {
+                ImGui::TextColored(row.own > 0 ? kMet : kInkMute, "%s", row.source.c_str());
+            } else if (row.fallback > 0) {
+                ImGui::TextColored(kInkMute, "Default выкл.");
+            } else {
+                ImGui::TextColored(kInkMute, "—");
+            }
 
             ImGui::TableNextColumn();
             ImGui::PushID(row.event.c_str());
@@ -575,6 +583,19 @@ void MainWindow::drawSettingsTab() {
         ImGui::TextDisabled("  Внутри — по папке на авиакомпанию (SBI, AFL, DLH…), "
                             "как у MSFS Universal Announcer.");
         ImGui::PopTextWrapPos();
+
+        if (ui::checkBox("Брать недостающие из набора Default",
+                         &settings.defaultFallback)) {
+            announcer_->settingsChanged();
+        }
+        ImGui::PushTextWrapPos(0.0f);
+        small(settings.defaultFallback
+                  ? "Если у авиакомпании нет какого-то объявления, оно берётся из набора "
+                    "Default. Так делает и версия 1.x."
+                  : "Объявления, которых нет у авиакомпании, не звучат вовсе. Голос в "
+                    "салоне остаётся один, но рейс проходит молча в этих местах.");
+        ImGui::PopTextWrapPos();
+
         // The language subfolder is not offered here. In a pack with one
         // language it is taken regardless of what the field says, which is most
         // packs - a control that usually changes nothing looks broken when it

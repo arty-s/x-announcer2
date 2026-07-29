@@ -123,6 +123,7 @@ const Help kHelp[] = {
     {"library", "папка со звуками: внутри по папке на авиакомпанию, как у MSFS Universal "
                 "Announcer. Пусто - берётся Sound_packs рядом с плагином"},
     {"language", "языковая подпапка внутри пака, если она есть: en-us, de-de, ru"},
+    {"default_fallback", "брать недостающие объявления из набора Default; false - молчать вместо этого"},
     {"airline_mode", "auto - определять авиакомпанию по ливрее и борту, manual - брать airline_manual"},
     {"airline_manual", "код ICAO пака, который использовать принудительно"},
     {"announce_bus", "шина X-Plane для объявлений: interior, exterior, ui, com1, com2, ground"},
@@ -190,6 +191,8 @@ Settings parseSettings(const std::string& text, std::vector<std::string>* proble
             s.library = value;
         } else if (key == "language") {
             s.language = value;
+        } else if (key == "default_fallback") {
+            parseBool(key, value, &s.defaultFallback, problems);
         } else if (key == "auto_find") {
             // Dropped, not renamed. Saying so and letting it fall out of the
             // file on the next write beats keeping it as an unknown key that
@@ -258,6 +261,7 @@ std::string writeSettings(const Settings& s) {
     const std::pair<const char*, std::string> entries[] = {
         {"library", s.library},
         {"language", s.language},
+        {"default_fallback", boolean(s.defaultFallback)},
         {"airline_mode", s.airlineMode},
         {"airline_manual", s.airlineManual},
         {"announce_bus", s.announceBus},

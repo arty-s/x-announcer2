@@ -92,6 +92,7 @@ void runSettingsChecks(int* checks, int* failed) {
                   again.announceBus == defaults.announceBus &&
                   again.musicBus == defaults.musicBus && again.volume == defaults.volume &&
                   again.musicVolume == defaults.musicVolume && again.duck == defaults.duck &&
+                  again.defaultFallback == defaults.defaultFallback &&
                   again.seatbeltDref == defaults.seatbeltDref &&
                   again.windowScale == defaults.windowScale &&
                   again.panelOpen == defaults.panelOpen,
@@ -116,6 +117,9 @@ void runSettingsChecks(int* checks, int* failed) {
         check(s.language == "en-us" && s.airlineMode == "auto" && s.airlineManual == "Default",
               "library defaults match 1.x");
         check(s.library.empty(), "the sound folder defaults to the standard one, not a guess");
+        // v2-only, and it starts as 1.x behaved: a new switch must never change
+        // what somebody already hears, only offer to.
+        check(s.defaultFallback, "gaps are filled from Default until told otherwise");
         check(s.volume == 0.85 && s.musicVolume == 0.35 && s.duck == 0.25 && s.windowScale == 1.0,
               "volume defaults match 1.x");
         check(!s.panelOpen, "the panel does not open itself on a fresh install");
@@ -137,6 +141,8 @@ void runSettingsChecks(int* checks, int* failed) {
               "a 1.x file reads with notes about exactly the two dropped keys");
         check(s.library == R"(D:\UA_Sounds)" && s.language == "ru",
               "library and language come across");
+        // A 1.x file cannot mention it, so reading one must leave it alone.
+        check(s.defaultFallback, "a file written by 1.x leaves the Default stand-in switched on");
         // Neither may survive as an unknown key either, or a dead switch would
         // sit in the file looking like it still does something.
         check(s.unknown.count("auto_find") == 0 && s.unknown.count("music_max_loops") == 0,

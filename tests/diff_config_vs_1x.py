@@ -44,6 +44,9 @@ DROPPED = {
 V2_ONLY = {
     "panel_open": "1.x never reopened its window by itself; v2 has to remember, "
                   "or it either forces the panel open or forgets it entirely",
+    "default_fallback": "1.x always fills a gap in the airline's pack from "
+                        "Default and offers no way to say no. v2 defaults to "
+                        "the same behaviour, so nothing changes unless asked",
 }
 
 DELIBERATE = {

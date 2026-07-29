@@ -111,6 +111,7 @@ void Announcer::saveSettings() {
 
 void Announcer::applySettings() {
     engine_->config() = settings_.flight;
+    library_.setDefaultFallback(settings_.defaultFallback);
     player_.setBuses(busByName(settings_.announceBus), busByName(settings_.musicBus));
     player_.setAnnouncementGain(static_cast<float>(settings_.volume));
     player_.setMusicGain(static_cast<float>(settings_.musicVolume));

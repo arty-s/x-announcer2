@@ -28,6 +28,13 @@ struct Settings {
     std::string library;
     std::string language = "en-us";
 
+    // Whether an announcement the airline's pack does not have is taken from the
+    // Default pack. On, because that is what 1.x always did and what a part-full
+    // pack needs to sound like a whole flight - but it is a taste, not a fact:
+    // one voice for the airline and another for the gaps can be worse than a
+    // gap. v2-only; 1.x had no way to say no.
+    bool defaultFallback = true;
+
     std::string airlineMode = "auto";  // auto | manual
     std::string airlineManual = "Default";
 

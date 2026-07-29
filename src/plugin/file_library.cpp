@@ -172,6 +172,17 @@ void FileSoundLibrary::nextVariantRound() {
     durations_.clear();
 }
 
+void FileSoundLibrary::setDefaultFallback(bool allowed) {
+    if (allowed == defaultFallback_) {
+        return;
+    }
+    defaultFallback_ = allowed;
+    // Half the events may now resolve to a different file, or to none.
+    durations_.clear();
+    log("library: недостающие объявления %s",
+        allowed ? "берутся из Default" : "не подставляются - таких объявлений просто нет");
+}
+
 const FileSoundLibrary::Entry* FileSoundLibrary::pickFrom(const Pack& pack,
                                                           const std::string& event) const {
     const auto found = pack.events.find(event);
@@ -197,6 +208,9 @@ const FileSoundLibrary::Entry* FileSoundLibrary::resolve(const std::string& even
             }
             return entry;
         }
+    }
+    if (!defaultFallback_) {
+        return nullptr;
     }
     // The airline's own pack may cover only part of the flight, so Default
     // stands in for the rest - per event, as in 1.x, not per pack.

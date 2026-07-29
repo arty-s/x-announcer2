@@ -58,6 +58,11 @@ public:
     // announcement is scheduled and the file itself is opened a moment later.
     void nextVariantRound();
 
+    // Whether an announcement missing from the selected pack is taken from
+    // Default. Off means the flight simply has no such announcement, which the
+    // state machine already knows how to survive.
+    void setDefaultFallback(bool allowed);
+
     bool has(const std::string& event) const override;
     double duration(const std::string& event) const override;
 
@@ -96,6 +101,7 @@ private:
     std::map<std::string, Pack> packs_;
     core::PlayContext context_;
     unsigned round_ = 0;
+    bool defaultFallback_ = true;
 
     // Probing opens the file, so the answer is remembered. Announcements are
     // asked for their length exactly when they start, and a disk read there is
