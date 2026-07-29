@@ -88,6 +88,25 @@ void syntheticChecks() {
     check(xa::audio::probeDuration(wav.data(), wav.size(), &probed) && std::fabs(probed - 1.0) < 0.01,
           "the WAV header alone gives the same duration");
 
+    // A pack that ships a placeholder - an .ogg of digital silence where the
+    // real track belongs - is otherwise indistinguishable from a broken plugin,
+    // and S7's BoardingMusic really is one. The peak is what tells them apart.
+    // The loudest sample in the synthetic file is 10000 of a possible 32767.
+    check(std::fabs(pcm.peak() - 10000.0f / 32767.0f) < 0.001f,
+          "a file with sound in it reports the level of its loudest sample");
+    xa::audio::Pcm quiet;
+    quiet.sampleRate = 8000;
+    quiet.channels = 1;
+    quiet.samples.assign(8000, 0);
+    check(quiet.peak() == 0.0f && quiet.seconds() == 1.0,
+          "a second of digital silence is a second long and has no peak at all");
+    xa::audio::Pcm loudest;
+    loudest.sampleRate = 8000;
+    loudest.channels = 1;
+    loudest.samples.assign(1, -32768);
+    check(loudest.peak() <= 1.0f && loudest.peak() > 0.99f,
+          "the one sample value with no positive twin does not overflow the peak");
+
     // The format sniffer must not be generous. A stub that answers "yes" to
     // anything is how this project lost two releases; a sniffer that calls a
     // text file an MP3 would hand garbage to the decoder on every scan.

@@ -127,7 +127,13 @@ void applyPanelTheme() {
     style.PopupRounding = 10.0f;
 
     style.WindowBorderSize = 0.0f;
-    style.FrameBorderSize = 1.0f;  // controls need an edge on a dark surface
+    // No outline on controls. A hairline round a button is what a glass panel
+    // looks like in a browser, where there is a blurred backdrop behind it to
+    // catch the light; here there is none, so the line is just a wireframe drawn
+    // round a shape that is barely filled - and it read as exactly that. A
+    // control now says it is a control by being LIGHTER than what it sits on,
+    // which is also the only cue that survives being looked at from a seat.
+    style.FrameBorderSize = 0.0f;
     style.ChildBorderSize = 1.0f;
     style.TabBorderSize = 0.0f;
 
@@ -151,17 +157,21 @@ void applyPanelTheme() {
     colors[ImGuiCol_Text] = kInk;
     colors[ImGuiCol_TextDisabled] = kInkMute;
 
-    colors[ImGuiCol_FrameBg] = inset(0.24f);
-    colors[ImGuiCol_FrameBgHovered] = inset(0.16f);
-    colors[ImGuiCol_FrameBgActive] = inset(0.10f);
+    // Fields and slider tracks go the other way - darker than the panel, because
+    // they receive content rather than offer an action.
+    colors[ImGuiCol_FrameBg] = inset(0.30f);
+    colors[ImGuiCol_FrameBgHovered] = inset(0.22f);
+    colors[ImGuiCol_FrameBgActive] = inset(0.16f);
 
     colors[ImGuiCol_TitleBg] = kNightDeep;
     colors[ImGuiCol_TitleBgActive] = kNightDeep;
     colors[ImGuiCol_TitleBgCollapsed] = kNightDeep;
 
-    colors[ImGuiCol_Button] = kGlass;
-    colors[ImGuiCol_ButtonHovered] = kGlassLit;
-    colors[ImGuiCol_ButtonActive] = glass(0.13f);
+    // Buttons are filled, and the three states are far enough apart to be felt
+    // rather than looked for: 5% steps are invisible on a dark surface.
+    colors[ImGuiCol_Button] = glass(0.12f);
+    colors[ImGuiCol_ButtonHovered] = glass(0.20f);
+    colors[ImGuiCol_ButtonActive] = glass(0.28f);
 
     colors[ImGuiCol_Header] = kAccentSoft;
     colors[ImGuiCol_HeaderHovered] = rgb(56, 189, 248, 0.26f);

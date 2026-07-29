@@ -317,7 +317,15 @@ void MainWindow::drawFlightTab() {
     // channel for it. When they disagree the panel says so - "Фон: BoardingMusic"
     // over a silence is a report nobody can act on.
     if (engine.musicPlaying()) {
-        if (announcer_->player().musicActive()) {
+        if (announcer_->player().musicSilent()) {
+            // The pack shipped a placeholder. Said here rather than left to the
+            // log, because this is the tab somebody is staring at wondering why
+            // the cabin is quiet.
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextColored(kAccent, "Фон: %s — в файле пака нет звука, это заглушка",
+                               engine.musicEvent().c_str());
+            ImGui::PopTextWrapPos();
+        } else if (announcer_->player().musicActive()) {
             ImGui::Text("Фон: %s", engine.musicEvent().c_str());
         } else {
             ImGui::PushTextWrapPos(0.0f);
@@ -579,7 +587,14 @@ void MainWindow::drawSettingsTab() {
         // Committed when the field loses focus, never per keystroke: rescanning
         // the disk after every letter of a path would be both slow and wrong.
         label("Папка со звуками");
+        // A tighter corner than the rest of the panel, and only here. ImGui
+        // paints the selection behind text as a plain rectangle clipped to the
+        // field's bounding box, so at a 6 px corner the highlight fills the
+        // square the rounded edge leaves empty and appears to leak out of the
+        // field. At 3 px the sliver is gone.
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
         ImGui::InputText("##library", libraryBuffer_, sizeof(libraryBuffer_));
+        ImGui::PopStyleVar();
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             settings.library = libraryBuffer_;
             announcer_->settingsChanged(true);

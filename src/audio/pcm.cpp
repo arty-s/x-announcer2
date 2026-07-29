@@ -10,6 +10,19 @@
 #include "dr_wav.h"
 
 namespace xa::audio {
+
+float Pcm::peak() const {
+    int loudest = 0;
+    for (const int16_t sample : samples) {
+        // -32768 has no positive twin, so it is clamped rather than negated.
+        const int magnitude = sample == -32768 ? 32767 : (sample < 0 ? -sample : sample);
+        if (magnitude > loudest) {
+            loudest = magnitude;
+        }
+    }
+    return static_cast<float>(loudest) / 32767.0f;
+}
+
 namespace {
 
 bool startsWith(const uint8_t* data, std::size_t size, const char* tag) {

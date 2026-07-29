@@ -57,7 +57,7 @@ void AudioPlayer::worker() {
         }
 
         std::lock_guard<std::mutex> lock(mutex_);
-        ready_.push_back(Ready{job.event, std::move(pcm), job.gain, job.music});
+        ready_.push_back(Ready{job.event, job.path, std::move(pcm), job.gain, job.music});
     }
 }
 
@@ -77,6 +77,7 @@ void AudioPlayer::completionCb(void* refcon, FMOD_RESULT /*status*/) {
 
 void AudioPlayer::start(Voice& voice, Ready& ready, XPLMAudioBus bus, bool loop) {
     voice.event = ready.event;
+    voice.path = ready.path;
     voice.pcm = ready.pcm;
     voice.gain = ready.gain;
     voice.loop = loop;
@@ -102,8 +103,20 @@ void AudioPlayer::start(Voice& voice, Ready& ready, XPLMAudioBus bus, bool loop)
     voice.appliedGain = -1.0f;
     voice.settleFrames = 3;
     applyGain(voice, "start");
-    log("audio: playing %s (%.1f s, %d Hz, %d ch, gain %.2f)", voice.event.c_str(),
-        voice.pcm->seconds(), voice.pcm->sampleRate, voice.pcm->channels, voice.gain);
+    // A file of digital silence is the one failure that looks like every other
+    // failure: it exists, it decodes, it is the right length, X-Plane takes it,
+    // and nothing comes out. Packs really do ship them - S7's BoardingMusic is
+    // a four-kilobyte placeholder - and without this line the only way to find
+    // out is to suspect the plugin and read its source.
+    voice.silent = voice.pcm->peak() < 0.001f;
+    if (voice.silent) {
+        log("audio: %s ЗВУЧИТ ТИШИНОЙ - в файле нет звука (%.1f с, пик 0). "
+            "Это заглушка в паке, а не сбой плагина: %s",
+            voice.event.c_str(), voice.pcm->seconds(), voice.path.c_str());
+    } else {
+        log("audio: playing %s (%.1f s, %d Hz, %d ch, gain %.2f)", voice.event.c_str(),
+            voice.pcm->seconds(), voice.pcm->sampleRate, voice.pcm->channels, voice.gain);
+    }
 }
 
 void AudioPlayer::playAnnouncement(const std::string& event, const std::string& path, float gain) {

@@ -58,6 +58,8 @@ public:
     // latter and so said "playing" through a silence.
     bool musicActive() const { return music_.channel != nullptr; }
     std::string musicEvent() const { return music_.event; }
+    // The file is playing and contains no sound - a placeholder in the pack.
+    bool musicSilent() const { return music_.channel != nullptr && music_.silent; }
 
 private:
     struct Voice {
@@ -72,6 +74,8 @@ private:
         // the channel going.
         int settleFrames = 0;
         bool loop = false;
+        bool silent = false;   // decoded to digital silence: a placeholder file
+        std::string path;      // kept so the log can name the file that is silent
         // Set by the completion callback, which X-Plane calls on the main
         // thread; the channel pointer is invalid from that moment on.
         std::atomic<bool> finished{false};
@@ -86,6 +90,7 @@ private:
 
     struct Ready {
         std::string event;
+        std::string path;
         std::shared_ptr<audio::Pcm> pcm;
         float gain = 1.0f;
         bool music = false;

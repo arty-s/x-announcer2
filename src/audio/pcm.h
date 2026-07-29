@@ -22,6 +22,14 @@ struct Pcm {
     int channels = 0;
 
     bool empty() const { return samples.empty(); }
+
+    // The loudest sample in the file, 0..1. A pack that ships a placeholder -
+    // an .ogg of digital silence where the real track should be - is otherwise
+    // indistinguishable from a broken plugin: the file exists, it decodes, it
+    // plays, it is even the right length, and nothing comes out. Cheap to
+    // measure, because the samples are already decoded and in hand.
+    float peak() const;
+
     double seconds() const {
         if (sampleRate <= 0 || channels <= 0) {
             return 0.0;
