@@ -288,16 +288,24 @@ bool checkBox(const char* label, bool* value) {
 }
 
 void sectionHeading(const char* text) {
-    ImGui::Dummy(ImVec2(0.0f, 7.0f));
-
-    ImFont* font = XpImguiWindow::engravedFont();
-    if (font == nullptr) {
-        font = ImGui::GetFont();
+    ImGui::Dummy(ImVec2(0.0f, 9.0f));
+    if (ImFont* font = XpImguiWindow::headingFont()) {
+        ImGui::PushFont(font);
     }
+    ImGui::TextUnformatted(text);
+    if (XpImguiWindow::headingFont() != nullptr) {
+        ImGui::PopFont();
+    }
+    ImGui::Separator();
+    ImGui::Dummy(ImVec2(0.0f, 1.0f));
+}
+
+void stencilText(const char* text) {
+    ImFont* font = ImGui::GetFont();
     // AddText is given an explicit size, so the global scale has to be applied
     // here - it is not a style the draw list knows about.
     const float size = font->FontSize * ImGui::GetIO().FontGlobalScale;
-    const float tracking = size * 0.20f;
+    const float tracking = size * 0.18f;
 
     const ImVec2 start = ImGui::GetCursorScreenPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
@@ -313,10 +321,7 @@ void sectionHeading(const char* text) {
         x += font->CalcTextSizeA(size, FLT_MAX, 0.0f, c, next).x + tracking;
         c = next;
     }
-
-    ImGui::Dummy(ImVec2(x - start.x, size));
-    ImGui::Separator();
-    ImGui::Dummy(ImVec2(0.0f, 1.0f));
+    ImGui::Dummy(ImVec2(x - start.x, ImGui::GetTextLineHeight()));
 }
 
 }  // namespace xa::ui

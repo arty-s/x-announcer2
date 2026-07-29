@@ -170,9 +170,9 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
     xa::log("starting - X-Plane %d, XPLM %d", xplaneVersion, xplmVersion);
 
     if (!guarded(g_fuseStart, [] {
-            // 16 px is the body size the four-step scale is built around; the
-            // other three are derived from it, not chosen separately.
-            xa::XpImguiWindow::loadUiFont(xa::assetPath("fonts/Roboto-Medium.ttf"), 16.0f);
+            // 13 px is the body size the scale is built around; the heading and
+            // focus sizes are derived from it, not chosen separately.
+            xa::XpImguiWindow::loadUiFont(xa::assetPath("fonts/Roboto-Medium.ttf"), 13.0f);
 
             const int menuIndex =
                 XPLMAppendMenuItem(XPLMFindPluginsMenu(), kPluginName, nullptr, 0);

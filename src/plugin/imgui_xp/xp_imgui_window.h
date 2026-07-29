@@ -30,22 +30,27 @@ public:
     // what someone asking for a bigger scale wants.
     void resizeKeepingCorner(int width, int height);
 
-    // Loads the Cyrillic-capable UI font once, shared by every window, in four
-    // sizes - and each size has a job, which is the part that was missing when
-    // there were merely several of them:
+    // Loads the Cyrillic-capable UI font once, shared by every window, in three
+    // sizes with a job each:
     //
-    //   focus    ~1.375x  the one thing a tab is about, once per tab
-    //   body      1.0x    labels, values, the checklist
-    //   note     ~0.81x   why a setting exists, what it costs
-    //   engraved ~0.69x   section lettering, stencilled and tracked
+    //   focus   ~1.7x   the one thing a tab is about, once per tab
+    //   heading ~1.25x  the name of a section, and the largest thing in it
+    //   body     1.0x   everything else
     //
-    // At the intended 16 px body that lands on 22 / 16 / 13 / 11. One typeface,
-    // four steps of roughly 1.25 - 1.x had exactly one of each, which is why its
-    // hierarchy had to be carried by colour alone.
+    // At the intended 13 px body that lands on 22 / 16 / 13.
+    //
+    // There were four sizes before, with the section name the SMALLEST and
+    // faintest thing on screen - a stencil above brighter, larger content. That
+    // is a real pattern (it is how iOS labels a group of settings) but it has a
+    // floor, and 11 px at a third of full ink was below it: the heading read as
+    // disabled. A heading now leads its block, and the levels below it are told
+    // apart by ink strength rather than by yet another size.
+    //
+    // There is exactly one typeface and one weight - the font shipped with ImGui
+    // has no bold - so size, case, tracking and opacity are the whole toolbox.
     static bool loadUiFont(const std::string& ttfPath, float sizePixels);
 
-    static ImFont* engravedFont();
-    static ImFont* noteFont();
+    static ImFont* headingFont();
     static ImFont* focusFont();
 
 protected:

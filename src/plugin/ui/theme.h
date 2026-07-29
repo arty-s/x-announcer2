@@ -47,14 +47,24 @@ void statusLamp(bool met);
 // Returns true on the frame it was toggled.
 bool checkBox(const char* label, bool* value);
 
-// A section heading in the panel's own stencilling: small, dim, letter-spaced,
-// with a hairline under it.
+// A section heading: the largest and brightest thing in its block, in ordinary
+// sentence case, with a hairline under it.
 //
-// The tracking is real - each codepoint is placed by hand through the draw list
+// It used to be the opposite - the smallest and faintest thing on the tab, set
+// in tracked capitals above larger, brighter content. That inversion is a real
+// pattern at the right size, but at 11 px and a third of full ink the heading
+// read as disabled text, and the levels stopped lining up with importance.
+void sectionHeading(const char* text);
+
+// Small tracked capitals in the quietest ink: the stencilled lettering the
+// direction is named for, kept for the one thing it suits - a machine-readable
+// name printed beside a human-readable one, like PREFLIGHT beside "Подготовка".
+//
+// The tracking is real: each codepoint is placed by hand through the draw list
 // with the gap added to the pen position. The obvious shortcut, inserting spaces
-// between the letters, cannot work: at a word boundary the word's own space
+// between the letters, cannot work - at a word boundary the word's own space
 // merges with the tracking spaces and the gap doubles. `text` is UTF-8 and is
 // never split inside a codepoint.
-void sectionHeading(const char* text);
+void stencilText(const char* text);
 
 }  // namespace xa::ui

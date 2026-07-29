@@ -29,8 +29,7 @@ ImFontAtlas* sharedAtlas() {
 
 GLuint g_atlasTexture = 0;
 bool g_atlasBuilt = false;
-ImFont* g_engravedFont = nullptr;
-ImFont* g_noteFont = nullptr;
+ImFont* g_headingFont = nullptr;
 ImFont* g_focusFont = nullptr;
 
 // A missing glyph degrades quietly - the character just becomes '?', the atlas
@@ -159,23 +158,20 @@ bool XpImguiWindow::loadUiFont(const std::string& ttfPath, float sizePixels) {
         atlas->AddFontDefault();
         return false;
     }
-    // Same file, three more sizes. The atlas pays for each, which is why there
-    // are four roles and not a scale for every occasion. Rounded to whole
-    // pixels: this font is hinted and half a pixel of body text is visibly
-    // softer than the line above it.
-    const float engraved = std::floor(sizePixels * 0.6875f + 0.5f);
-    const float note = std::floor(sizePixels * 0.8125f + 0.5f);
-    const float focus = std::floor(sizePixels * 1.375f + 0.5f);
-    g_engravedFont = atlas->AddFontFromFileTTF(ttfPath.c_str(), engraved, &config, ranges.Data);
-    g_noteFont = atlas->AddFontFromFileTTF(ttfPath.c_str(), note, &config, ranges.Data);
+    // Same file, two more sizes. The atlas pays for each, which is why there are
+    // three roles and not a scale for every occasion. Rounded to whole pixels:
+    // this font is hinted and half a pixel of body text is visibly softer than
+    // the line above it.
+    const float heading = std::floor(sizePixels * 1.25f + 0.5f);
+    const float focus = std::floor(sizePixels * 1.70f + 0.5f);
+    g_headingFont = atlas->AddFontFromFileTTF(ttfPath.c_str(), heading, &config, ranges.Data);
     g_focusFont = atlas->AddFontFromFileTTF(ttfPath.c_str(), focus, &config, ranges.Data);
-    log("font: loaded '%s' at %.0f / %.0f / %.0f / %.0f px (engraved/note/body/focus)",
-        ttfPath.c_str(), engraved, note, sizePixels, focus);
+    log("font: loaded '%s' at %.0f / %.0f / %.0f px (body/heading/focus)", ttfPath.c_str(),
+        sizePixels, heading, focus);
     return true;
 }
 
-ImFont* XpImguiWindow::engravedFont() { return g_engravedFont; }
-ImFont* XpImguiWindow::noteFont() { return g_noteFont; }
+ImFont* XpImguiWindow::headingFont() { return g_headingFont; }
 ImFont* XpImguiWindow::focusFont() { return g_focusFont; }
 
 XpImguiWindow::XpImguiWindow(int width, int height, std::string title)
