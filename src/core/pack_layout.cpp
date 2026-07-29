@@ -78,14 +78,36 @@ bool allDigits(const std::string& s) {
                        [](unsigned char c) { return std::isdigit(c) != 0; });
 }
 
+// Re-engining gives an aeroplane a new ICAO designator that shares nothing with
+// the old one - an A320neo is A20N, not A320N - while the cabin, the doors and
+// therefore the announcement stay exactly the same. Pack authors tag the cabin
+// they recorded for ([A320], [B738]), so these pairs have to be read as one
+// aeroplane or a neo pilot hears the generic Default file. Only re-engined
+// variants of the same fuselage belong here: an A359 and an A35K are different
+// cabins and must stay apart.
+const char* const kSameCabin[][2] = {
+    {"A19N", "A319"}, {"A20N", "A320"}, {"A21N", "A321"},
+    {"B37M", "B737"}, {"B38M", "B738"}, {"B39M", "B739"},
+    {"E290", "E190"}, {"E295", "E195"},
+};
+
+std::string sameCabinAs(const std::string& code) {
+    for (const auto& pair : kSameCabin) {
+        if (code == pair[0]) {
+            return pair[1];
+        }
+        if (code == pair[1]) {
+            return pair[0];
+        }
+    }
+    return std::string();
+}
+
 // An aircraft tag matches when it is the aeroplane's code, or when one is the
 // beginning of the other and both are at least three characters. That is how
-// [A32] catches an A320 and [A320] catches an A320N, which is what packs in the
-// wild expect - and the length floor is what stops [A] catching everything.
-bool aircraftMatches(const std::string& tag, const std::string& plane) {
-    if (plane.empty()) {
-        return false;
-    }
+// [A32] catches an A320, which is what packs in the wild expect - and the length
+// floor is what stops [A] catching everything.
+bool prefixMatches(const std::string& tag, const std::string& plane) {
     if (tag == plane) {
         return true;
     }
@@ -93,6 +115,22 @@ bool aircraftMatches(const std::string& tag, const std::string& plane) {
         return false;
     }
     return tag.rfind(plane, 0) == 0 || plane.rfind(tag, 0) == 0;
+}
+
+bool aircraftMatches(const std::string& tag, const std::string& plane) {
+    if (plane.empty()) {
+        return false;
+    }
+    if (prefixMatches(tag, plane)) {
+        return true;
+    }
+    // Both directions, so that a pack tagged [A20N] is heard in a ceo as well.
+    const std::string twin = sameCabinAs(plane);
+    if (!twin.empty() && prefixMatches(tag, twin)) {
+        return true;
+    }
+    const std::string tagTwin = sameCabinAs(tag);
+    return !tagTwin.empty() && prefixMatches(tagTwin, plane);
 }
 
 }  // namespace

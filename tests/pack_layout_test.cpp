@@ -138,12 +138,32 @@ void runVariantChecks() {
           "another aeroplane's file never plays");
     check(plays("AfterTakeoff.ogg", "A320", "night") && plays("AfterTakeoff.ogg", "", ""),
           "an untagged file plays in any aeroplane at any hour");
-    check(plays("SafetyBriefing[A320].ogg", "A320N", "day") &&
-              plays("SafetyBriefing[A320N].ogg", "A320", "day"),
+    check(plays("SafetyBriefing[A32].ogg", "A320", "day") &&
+              plays("SafetyBriefing[A320].ogg", "A32", "day"),
           "an aircraft tag matches by prefix in either direction");
     check(!plays("SafetyBriefing[A32].ogg", "B738", "day") &&
               !plays("SafetyBriefing[A].ogg", "A320", "day"),
           "but a one-letter tag matches nothing, or it would match everything");
+
+    // Every designator below is the one X-Plane actually reports, taken from
+    // ICAO Doc 8643. The rule used to be checked against "A320N", a string no
+    // aeroplane emits, so it passed while every neo in the fleet fell through to
+    // Default. Real codes only, or the check proves nothing again.
+    check(plays("PreSafetyBriefing[A320].ogg", "A20N", "day") &&
+              plays("PreSafetyBriefing[A319].ogg", "A19N", "day") &&
+              plays("PreSafetyBriefing[A321].ogg", "A21N", "day"),
+          "a neo hears the file its ceo twin was recorded for");
+    check(plays("PreSafetyBriefing[A20N].ogg", "A320", "day"),
+          "and the other way round, so a pack tagged for the neo is not lost");
+    check(plays("SafetyBriefing[A32].ogg", "A20N", "day"),
+          "a shortened tag reaches the neo through its twin as well");
+    check(plays("SafetyBriefing[B738].ogg", "B38M", "day"),
+          "the same holds for the 737 MAX");
+    check(!plays("PreSafetyBriefing[A321].ogg", "A20N", "day") &&
+              !plays("PreSafetyBriefing[A320].ogg", "A21N", "day"),
+          "but the twin is one aeroplane, not the whole family");
+    check(!plays("SafetyBriefing[A359].ogg", "A35K", "day"),
+          "and different cabins stay apart however alike the codes look");
 
     check(scoreOf("SafetyBriefing[A320][Night].ogg", "A320", "night") >
               scoreOf("SafetyBriefing[Night].ogg", "A320", "night"),
