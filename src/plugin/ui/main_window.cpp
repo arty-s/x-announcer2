@@ -312,8 +312,19 @@ void MainWindow::drawFlightTab() {
     if (engine.queueSize() > 0) {
         ImGui::Text("В очереди: %zu", engine.queueSize());
     }
+    // Two different questions, and the panel used to answer only the first: the
+    // engine believes a background track is running, and X-Plane actually has a
+    // channel for it. When they disagree the panel says so - "Фон: BoardingMusic"
+    // over a silence is a report nobody can act on.
     if (engine.musicPlaying()) {
-        ImGui::Text("Фон: %s", engine.musicEvent().c_str());
+        if (announcer_->player().musicActive()) {
+            ImGui::Text("Фон: %s", engine.musicEvent().c_str());
+        } else {
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextColored(kAccent, "Фон: %s — но X-Plane его не играет, смотрите журнал",
+                               engine.musicEvent().c_str());
+            ImGui::PopTextWrapPos();
+        }
     }
 
     section("ЧТО ВИДИТ ПЛАГИН");

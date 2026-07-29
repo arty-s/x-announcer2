@@ -40,11 +40,15 @@ struct Settings {
 
     // 1.x names its buses after FlyWithLua's mixer (interior|master|ui|com1).
     // The XPLM has no master bus, so v2 names them after the SDK enum instead:
-    // interior | exterior | ui | com1 | com2 | ground. Music therefore defaults
-    // to `exterior`, which is the bus it already played on before the file
-    // existed - the default must never change what the user hears.
+    // interior | exterior | ui | com1 | com2 | ground.
+    //
+    // Music was first mapped to `exterior` on the reasoning that it was the
+    // nearest thing to 1.x's `master`. It is not: exterior is the world outside
+    // the hull, which the cockpit is insulated from, so boarding music played
+    // where nobody could hear it while the panel cheerfully said it was on.
+    // Cabin music belongs in the cabin, on the same bus as the crew.
     std::string announceBus = "interior";
-    std::string musicBus = "exterior";
+    std::string musicBus = "interior";
 
     double volume = 0.85;
     double musicVolume = 0.35;

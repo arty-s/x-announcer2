@@ -53,6 +53,12 @@ public:
     bool announcementActive() const { return announcement_.channel != nullptr; }
     std::string announcementEvent() const { return announcement_.event; }
 
+    // Whether a background track has an actual channel in X-Plane, as opposed to
+    // the state machine believing one is running. The panel used to report the
+    // latter and so said "playing" through a silence.
+    bool musicActive() const { return music_.channel != nullptr; }
+    std::string musicEvent() const { return music_.event; }
+
 private:
     struct Voice {
         std::string event;

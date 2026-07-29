@@ -51,8 +51,10 @@ V2_ONLY = {
 
 DELIBERATE = {
     "music_bus": "1.x names FlyWithLua's mixer buses (master); the XPLM has no "
-                 "master bus, so v2 uses the SDK's exterior - the bus music "
-                 "already played on before the file existed",
+                 "master bus, so v2 uses interior - the cabin, which is where "
+                 "boarding music is heard from. The first mapping was exterior, "
+                 "on the reasoning that it was closest to master; it is not, and "
+                 "the music played where nobody could hear it",
     "library": "1.x defaults to a Sounds folder beside the script; v2 leaves it "
                "empty, which means the Sound_packs folder beside the plugin - so "
                "the setting keeps working when the plugin folder is moved",

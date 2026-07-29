@@ -66,9 +66,17 @@ void renderImGuiDrawData(ImDrawData* drawData, int windowLeft, int windowTop) {
         return;
     }
 
-    // fog off, 1 texture unit, no lighting, alpha test on, blending on,
+    // fog off, 1 texture unit, no lighting, ALPHA TEST OFF, blending on,
     // no depth test, no depth write.
-    XPLMSetGraphicsState(0, 1, 0, 1, 1, 0, 0);
+    //
+    // The alpha test is the one that matters. It throws away fragments below a
+    // threshold, and everything this panel is built out of lives below one: a
+    // hairline border at 14% white, the feathered edge of every anti-aliased
+    // corner, the aurora at a few percent. With it on, the borders of check
+    // boxes, fields, buttons and sliders came out ragged and dotted - not a
+    // styling problem at all, but half the pixels of each edge being discarded
+    // before they could be blended. Alpha blending alone is what a UI wants.
+    XPLMSetGraphicsState(0, 1, 0, 0, 1, 0, 0);
 
     const GlTransform xform = captureTransform();
     if (!g_loggedGeometry) {
