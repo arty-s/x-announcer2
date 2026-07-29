@@ -162,6 +162,15 @@ private:
             } else {
                 fail(lineNo, "unknown event '" + words[1] + "'");
             }
+        } else if (verb == "v2only") {
+            // Says this scenario is not comparable with 1.x, and why. Nothing
+            // happens here - the C++ bench flies it like any other; it is the
+            // differential run that has to know to stand down. The reason is
+            // mandatory because the whole point is that skipping a comparison
+            // must never be a silent decision.
+            if (words.size() < 2) {
+                fail(lineNo, "v2only needs a reason - a skipped comparison has to say why");
+            }
         } else if (verb == "expect") {
             expect(words, lineNo);
         } else {
@@ -322,6 +331,20 @@ private:
             } else if (e.playingEvent() != words[2]) {
                 fail(lineNo, "expected " + words[2] + " playing, got " +
                              (e.isPlaying() ? e.playingEvent() : std::string("silence")));
+            }
+        } else if (what == "music") {
+            // Background tracks are checked separately from announcements: they
+            // are the only thing on the panel that is meant to still be there
+            // minutes later, so "is it still going" is the whole question.
+            if (words.size() < 3) { fail(lineNo, "expect music needs an event or 'idle'"); return; }
+            if (words[2] == "idle") {
+                if (e.musicPlaying()) {
+                    fail(lineNo, "expected no background track, but " + e.musicEvent() +
+                                     " is playing");
+                }
+            } else if (e.musicEvent() != words[2]) {
+                fail(lineNo, "expected " + words[2] + " as the background track, got " +
+                             (e.musicPlaying() ? e.musicEvent() : std::string("nothing")));
             }
         } else {
             fail(lineNo, "unknown expectation '" + what + "'");

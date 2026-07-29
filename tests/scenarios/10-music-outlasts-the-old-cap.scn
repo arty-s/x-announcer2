@@ -1,0 +1,41 @@
+# Boarding music plays for as long as boarding lasts.
+#
+# v2 dropped music_max_loops. In 1.x that cap stopped the background track after
+# six loops - a number that had nothing to do with boarding and everything to do
+# with bounding a FlyWithLua memory leak. What a listener heard was the music
+# ending in the middle of boarding, with nothing on screen or in the cabin to
+# explain it.
+#
+# So this scenario boards for long enough to pass the old cap twice over, and
+# insists the track is still going.
+
+v2only 1.x stops background music after six loops and starts it again, so its trace carries music events this one cannot have
+
+# The welcome is pushed out of the way: it is not what is being measured here,
+# and a second one would restart the music by emptying and refilling the queue.
+config boarding_music=1 auto_boarding=1 boarding_repeat=100000
+library BoardingStarted BoardingWelcome BoardingMusic:60
+
+set hour=12 seatbelt=0
+
+# ---- the aircraft wakes up on stand -----------------------------------------
+set battery=1 nav=1
+advance 30
+expect phase BOARDING
+expect played BoardingStarted
+expect music BoardingMusic
+
+# ---- eight and a bit loops of a 60 second track ------------------------------
+# The old cap would have cut it at six, around 360 s.
+advance 500
+expect phase BOARDING
+expect music BoardingMusic
+expect play-count BoardingWelcome 1
+
+# ---- and it still stops when boarding actually ends ---------------------------
+# A track that never ends would pass the check above just as well, so the other
+# half of the claim is tested too.
+set beacon=1
+advance 6
+expect phase PUSHBACK
+expect music idle

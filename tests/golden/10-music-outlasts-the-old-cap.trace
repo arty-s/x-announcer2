@@ -1,0 +1,6 @@
+     0.0 phase BOARDING (cabin ready)
+     0.5 play BoardingStarted (cabin ready)
+     9.0 play BoardingWelcome (boarding)
+    17.0 music BoardingMusic
+   530.0 music-stop BoardingMusic
+   530.0 phase PUSHBACK (beacon on)

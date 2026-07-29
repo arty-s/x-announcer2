@@ -61,6 +61,7 @@ class Scenario:
         self.steps: list[tuple] = []
         self.touches_seatbelt = False
         self.environment_events: list[str] = []
+        self.v2only: str = ""
 
         with open(path, encoding="utf-8") as f:
             for raw in f:
@@ -101,6 +102,18 @@ class Scenario:
                     # again from zero, which this bench cannot express. The
                     # scenario is skipped, out loud, rather than half-flown.
                     self.environment_events.append(rest[0] if rest else verb)
+                elif verb == "v2only":
+                    # A behaviour v2 has on purpose and 1.x does not, so there is
+                    # nothing to compare - the two would be measured against each
+                    # other on a point where they are meant to differ, and one of
+                    # them would have to lose.
+                    #
+                    # The reason is required and is printed on every run. A skip
+                    # nobody reads is a test that was quietly deleted, and this
+                    # list will grow as v2 moves further from 1.x.
+                    if not rest:
+                        raise SystemExit(f"{path}: v2only needs a reason")
+                    self.v2only = " ".join(rest)
                 else:
                     raise SystemExit(f"{path}: unknown directive '{verb}'")
 
@@ -285,6 +298,9 @@ def main() -> int:
         golden = os.path.join(golden_dir, scenario.name + ".trace")
         if not os.path.exists(golden):
             print(f"-- {scenario.name}: SKIP (no C++ trace; run xa_test first)")
+            continue
+        if scenario.v2only:
+            print(f"-- {scenario.name}: SKIP (v2-only - {scenario.v2only})")
             continue
         if scenario.environment_events:
             events = ", ".join(scenario.environment_events)
