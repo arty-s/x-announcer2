@@ -138,11 +138,10 @@ const Help kHelp[] = {
     {"pilot_welcome", "приветствие командира после приветствия бортпроводника"},
     {"door_calls", "объявления про двери: ArmDoors и DisarmDoors"},
     {"night_dim", "объявления про притушенный свет в салоне ночью"},
-    {"landing_reaction", "реакция салона на касание: LandingGreat или LandingTerrible"},
+    {"landing_reaction", "реакция салона на посадку: LandingGreat или LandingTerrible"},
     {"seatbelt_dref", "свой датареф табло ремней; пусто - искать автоматически"},
     {"window_scale", "масштаб текста в окне, 1.0 - обычный; больше для VR"},
     {"panel_open", "было ли окно плагина открыто при выходе; так оно и откроется в следующий раз"},
-    {"music_max_loops", "сколько раз зацикливать фоновый трек"},
 };
 
 const char* helpFor(const std::string& key) {
@@ -230,7 +229,12 @@ Settings parseSettings(const std::string& text, std::vector<std::string>* proble
         } else if (key == "landing_reaction") {
             parseBool(key, value, &s.flight.landingReaction, problems);
         } else if (key == "music_max_loops") {
-            parseInt(key, value, 0, 100, &s.flight.musicMaxLoops, problems);
+            // Dropped like auto_find, and for the same reason: a key that is
+            // read and then ignored is worse than one that is gone. In 1.x the
+            // cap bounded a FlyWithLua memory leak; v2 has no leak to bound, and
+            // the audible effect was music stopping in the middle of boarding.
+            complain(problems, "music_max_loops: больше не используется - фоновый трек "
+                               "играет, пока идёт фаза, которая его завела");
         } else if (key == "seatbelt_dref") {
             s.seatbeltDref = value;
         } else if (key == "window_scale") {
@@ -273,7 +277,6 @@ std::string writeSettings(const Settings& s) {
         {"seatbelt_dref", s.seatbeltDref},
         {"window_scale", number(s.windowScale)},
         {"panel_open", boolean(s.panelOpen)},
-        {"music_max_loops", number(static_cast<double>(s.flight.musicMaxLoops))},
     };
 
     for (const auto& [key, value] : entries) {

@@ -179,7 +179,6 @@ private:
         else if (key == "night_dim") { config_.nightDim = asBool(value); }
         else if (key == "landing_reaction") { config_.landingReaction = asBool(value); }
         else if (key == "boarding_repeat") { config_.boardingRepeat = std::stod(value); }
-        else if (key == "music_max_loops") { config_.musicMaxLoops = std::stoi(value); }
         else { fail(lineNo, "unknown config key '" + key + "'"); }
     }
 

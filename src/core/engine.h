@@ -93,7 +93,6 @@ private:
         std::string event;
         double startedWall = 0.0;
         double duration = 0.0;
-        int loops = 0;
     };
 
     struct FlightState {

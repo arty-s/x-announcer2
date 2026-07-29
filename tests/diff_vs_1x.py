@@ -105,9 +105,12 @@ class Scenario:
                     raise SystemExit(f"{path}: unknown directive '{verb}'")
 
 
+# Keys a scenario may set. music_max_loops is deliberately absent: v2 dropped the
+# cap, so a scenario that set it would be asking the two implementations to be
+# configured differently and calling the result a match.
 CONFIG_KEYS = {
     "enabled", "boarding_music", "cabin_noise", "auto_boarding", "pilot_welcome",
-    "door_calls", "night_dim", "landing_reaction", "boarding_repeat", "music_max_loops",
+    "door_calls", "night_dim", "landing_reaction", "boarding_repeat",
 }
 
 BOOLS = {"enabled", "boarding_music", "cabin_noise", "auto_boarding", "pilot_welcome",

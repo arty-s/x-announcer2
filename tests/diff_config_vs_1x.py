@@ -33,6 +33,10 @@ DROPPED = {
     "auto_find": "hunted for D:\\UA_Sounds and two other drives - one person's "
                  "folder name baked into everybody's install. v2 uses the "
                  "Sound_packs folder beside the plugin when library is empty",
+    "music_max_loops": "in 1.x the cap bounded a FlyWithLua memory leak, not "
+                       "anything about boarding; what it actually did was stop "
+                       "the music mid-boarding. v2 loops for as long as the "
+                       "phase that started the track lasts",
 }
 
 # Differences that are meant. Anything not named here has to match exactly.

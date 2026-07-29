@@ -242,13 +242,14 @@ void Engine::audioUpdate() {
         emit(Intent::Kind::PlayAnnouncement, item.event, item.reason);
     }
 
+    // Background tracks loop for as long as the phase that started them wants
+    // them. There used to be a cap of six, inherited from 1.x, where it existed
+    // to bound a FlyWithLua leak rather than to say anything about boarding -
+    // and its real effect was that music stopped mid-boarding for no reason the
+    // listener could hear. Every track here is already stopped by something:
+    // boarding music by the beacon, cabin noise by touching down.
     if (music_ && wallClock_ >= music_->startedWall + music_->duration) {
-        if (music_->loops + 1 >= config_.musicMaxLoops) {
-            stopMusic();
-        } else {
-            music_->loops += 1;
-            music_->startedWall = wallClock_;
-        }
+        music_->startedWall = wallClock_;
     }
 }
 

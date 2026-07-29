@@ -104,8 +104,7 @@ void runSettingsChecks(int* checks, int* failed) {
                   again.flight.doorCalls == defaults.flight.doorCalls &&
                   again.flight.nightDim == defaults.flight.nightDim &&
                   again.flight.landingReaction == defaults.flight.landingReaction &&
-                  again.flight.boardingRepeat == defaults.flight.boardingRepeat &&
-                  again.flight.musicMaxLoops == defaults.flight.musicMaxLoops,
+                  again.flight.boardingRepeat == defaults.flight.boardingRepeat,
               "flight settings survive write then read");
     }
 
@@ -123,7 +122,7 @@ void runSettingsChecks(int* checks, int* failed) {
         check(s.flight.enabled && s.flight.boardingMusic && !s.flight.cabinNoise &&
                   s.flight.autoBoarding && !s.flight.pilotWelcome && s.flight.doorCalls &&
                   s.flight.nightDim && s.flight.landingReaction &&
-                  s.flight.boardingRepeat == 300.0 && s.flight.musicMaxLoops == 6,
+                  s.flight.boardingRepeat == 300.0,
               "flight defaults match 1.x");
     }
 
@@ -131,15 +130,17 @@ void runSettingsChecks(int* checks, int* failed) {
     {
         std::vector<std::string> problems;
         const core::Settings s = core::parseSettings(kFileFrom1x, &problems);
-        // One note, and only one: auto_find no longer exists. Everything else in
-        // a 1.x file still means what it meant.
-        check(problems.size() == 1 && mentions(problems, "auto_find"),
-              "a 1.x file reads with a single note, about the dropped auto_find");
+        // Two notes, and only two: auto_find and music_max_loops no longer
+        // exist. Everything else in a 1.x file still means what it meant.
+        check(problems.size() == 2 && mentions(problems, "auto_find") &&
+                  mentions(problems, "music_max_loops"),
+              "a 1.x file reads with notes about exactly the two dropped keys");
         check(s.library == R"(D:\UA_Sounds)" && s.language == "ru",
               "library and language come across");
-        // It must not survive as an unknown key either, or a dead switch would
+        // Neither may survive as an unknown key either, or a dead switch would
         // sit in the file looking like it still does something.
-        check(s.unknown.count("auto_find") == 0, "and auto_find does not linger in the file");
+        check(s.unknown.count("auto_find") == 0 && s.unknown.count("music_max_loops") == 0,
+              "and the dropped keys do not linger in the file");
         check(s.airlineMode == "manual" && s.airlineManual == "DLH" && !s.autoAirline(),
               "manual airline mode comes across");
         check(s.announceBus == "ui" && s.musicBus == "com1", "bus names come across");
@@ -148,8 +149,7 @@ void runSettingsChecks(int* checks, int* failed) {
                   !s.flight.autoBoarding && s.flight.pilotWelcome && !s.flight.doorCalls &&
                   !s.flight.nightDim && !s.flight.landingReaction,
               "every flight switch comes across");
-        check(s.flight.boardingRepeat == 120.0 && s.flight.musicMaxLoops == 3,
-              "boarding_repeat and music_max_loops come across");
+        check(s.flight.boardingRepeat == 120.0, "boarding_repeat comes across");
         check(s.seatbeltDref == "my/own/seatbelt" && s.windowScale == 1.5,
               "seatbelt_dref and window_scale come across");
 
@@ -160,7 +160,8 @@ void runSettingsChecks(int* checks, int* failed) {
         const core::Settings again = core::parseSettings(core::writeSettings(s));
         check(again.unknown == s.unknown, "and they survive a rewrite");
         check(again.airlineMode == "manual" && again.announceBus == "ui" && again.volume == 0.5 &&
-                  again.flight.musicMaxLoops == 3 && again.seatbeltDref == "my/own/seatbelt",
+                  again.flight.boardingRepeat == 120.0 &&
+                  again.seatbeltDref == "my/own/seatbelt",
               "as does everything else in the file");
     }
 

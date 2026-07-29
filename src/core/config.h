@@ -16,7 +16,6 @@ struct Config {
     bool landingReaction = true;
 
     double boardingRepeat = 300.0;  // seconds between BoardingWelcome repeats
-    int musicMaxLoops = 6;
 };
 
 }  // namespace xa::core
