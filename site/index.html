@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="X-Announcer — объявления бортпроводников для X-Plane 12: приветствие, брифинг, ремни, посадка. По фазам полёта, с определением авиакомпании по ливрее.">
+<title>X-Announcer — объявления бортпроводников для X-Plane 12</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a1220'/%3E%3Cpath d='M8 20h16M8 15h11M8 10h16' stroke='%2338bdf8' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --night-1:#0e1b2c; --night-2:#0a1220; --night-3:#05080f;
+    --ink:#f2f8fb; --ink-dim:rgba(226,238,246,.6); --ink-mute:rgba(214,230,240,.42);
+    --ink-faint:rgba(180,200,214,.34);
+    --avionics:#38bdf8; --avionics-soft:#7dd3fc;
+    --clearance:#34e0a1;
+    --glass:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.045));
+    --glass-quiet:rgba(255,255,255,.045);
+    --glass-edge:rgba(255,255,255,.14);
+    --hair:rgba(255,255,255,.07);
+    --font:-apple-system,"SF Pro Display","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono","Consolas",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
+  ::-webkit-scrollbar{width:12px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:20px;border:3px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.28);background-clip:padding-box}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+
+  body{
+    font-family:var(--font); color:var(--ink);
+    background:radial-gradient(130% 100% at 50% -10%,var(--night-1) 0%,var(--night-2) 42%,var(--night-3) 100%);
+    background-attachment:fixed;
+    min-height:100vh; overflow-x:hidden; position:relative;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    line-height:1.55;
+  }
+
+  /* ---- aurora ---- */
+  .aurora{position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none}
+  .aurora b{position:absolute; border-radius:50%; display:block}
+  .aurora .c1{width:52vmax;height:52vmax; left:-18vmax; top:-22vmax;
+    background:radial-gradient(circle,var(--avionics) 0%,transparent 62%); opacity:.26; filter:blur(70px);
+    animation:drift1 18s ease-in-out infinite alternate}
+  .aurora .c2{width:58vmax;height:58vmax; right:-22vmax; top:-10vmax;
+    background:radial-gradient(circle,#6366f1 0%,transparent 62%); opacity:.26; filter:blur(80px);
+    animation:drift2 22s ease-in-out infinite alternate}
+  .aurora .c3{width:60vmax;height:42vmax; left:50%; bottom:-26vmax; transform:translateX(-50%);
+    background:radial-gradient(circle,#a855f7 0%,transparent 62%); opacity:.20; filter:blur(90px);
+    animation:drift3 16s ease-in-out infinite alternate}
+  @keyframes drift1{to{transform:translate(6vmax,4vmax) scale(1.08)}}
+  @keyframes drift2{to{transform:translate(-5vmax,5vmax) scale(1.1)}}
+  @keyframes drift3{to{transform:translateX(-50%) translateY(-4vmax) scale(1.06)}}
+  .grain{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  main{position:relative; z-index:2; width:min(940px,100%); margin:0 auto; padding:34px 20px 70px}
+
+  /* ---- top line ---- */
+  .top{display:flex; align-items:center; gap:14px; margin-bottom:52px}
+  .back{color:var(--ink-mute); text-decoration:none; font-size:13px; letter-spacing:.01em;
+    display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:999px;
+    border:1px solid transparent; transition:color .18s cubic-bezier(.23,1,.32,1), border-color .18s, background .18s}
+  .back:hover{color:var(--ink); border-color:var(--glass-edge); background:var(--glass-quiet)}
+  .pill{margin-left:auto; display:inline-flex; align-items:center; gap:8px;
+    padding:7px 14px; border-radius:999px; background:var(--glass-quiet);
+    border:1px solid var(--glass-edge); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-dim); font-weight:600}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--clearance);
+    box-shadow:0 0 9px rgba(52,224,161,.75)}
+
+  /* ---- hero ---- */
+  .hero{margin-bottom:46px; animation:rise .7s cubic-bezier(.23,1,.32,1) both}
+  h1{font-size:clamp(34px,8vw,50px); font-weight:600; letter-spacing:-.026em; line-height:1.06;
+    margin-bottom:18px}
+  h1 span{color:var(--avionics)}
+  .lede{font-size:clamp(16px,2.4vw,19px); color:var(--ink-dim); max-width:62ch; letter-spacing:-.005em}
+  .lede b{color:var(--ink); font-weight:500}
+
+  /* ---- version cards ---- */
+  .versions{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:44px}
+  @media(max-width:760px){.versions{grid-template-columns:1fr}}
+  .card{
+    background:var(--glass);
+    -webkit-backdrop-filter:blur(34px) saturate(1.5); backdrop-filter:blur(34px) saturate(1.5);
+    border:1px solid var(--glass-edge); border-radius:28px; padding:26px;
+    box-shadow:0 30px 80px -24px rgba(0,0,0,.7),0 2px 10px -2px rgba(0,0,0,.5),
+               inset 0 1px 0 rgba(255,255,255,.22);
+    display:flex; flex-direction:column;
+    animation:rise .7s cubic-bezier(.23,1,.32,1) both;
+  }
+  .card.lead{animation-delay:.06s}
+  .card.alt{animation-delay:.12s}
+  .vhead{display:flex; align-items:baseline; gap:10px; margin-bottom:4px; flex-wrap:wrap}
+  .vname{font-size:22px; font-weight:600; letter-spacing:-.02em}
+  .vnum{font-family:var(--mono); font-size:12px; color:var(--avionics); background:rgba(56,189,248,.12);
+    border:1px solid rgba(56,189,248,.28); padding:3px 9px; border-radius:8px; letter-spacing:.02em}
+  .vsub{color:var(--ink-mute); font-size:13.5px; margin-bottom:18px}
+  /* Маркер абсолютом, а не flex-элементом: во flex-контейнере каждый текстовый
+     узел и каждый инлайн-тег внутри становится отдельным flex-элементом, и
+     фраза с <b> и <code> разлетается на колонки. */
+  .vlist{list-style:none; margin-bottom:22px; flex:1}
+  .vlist li{position:relative; padding:9px 0 9px 17px; border-top:1px solid var(--hair);
+    font-size:14.5px; color:var(--ink-dim); letter-spacing:-.003em}
+  .vlist li:first-child{border-top:0}
+  .vlist li::before{content:""; position:absolute; left:0; top:17px;
+    width:6px; height:6px; border-radius:50%;
+    background:var(--avionics-soft); opacity:.55}
+  .vlist li.no::before{background:var(--ink-faint); opacity:.5}
+  .vlist li.no{color:var(--ink-mute)}
+  .vlist b{color:var(--ink); font-weight:500}
+
+  .dl{display:block; text-align:center; text-decoration:none; border-radius:15px;
+    padding:14px 18px; font-size:15.5px; font-weight:600; letter-spacing:-.01em;
+    transition:transform .18s cubic-bezier(.23,1,.32,1), box-shadow .18s, background .18s, border-color .18s}
+  .dl:active{transform:scale(.98)}
+  .dl.primary{background:linear-gradient(180deg,#4cc2ff,#0a84ff); color:#fff;
+    box-shadow:0 10px 30px -10px rgba(10,132,255,.75), inset 0 1px 0 rgba(255,255,255,.34)}
+  .dl.primary:hover{transform:translateY(-2px);
+    box-shadow:0 16px 40px -12px rgba(10,132,255,.85), inset 0 1px 0 rgba(255,255,255,.34)}
+  .dl.ghost{background:var(--glass-quiet); color:var(--ink); border:1px solid var(--glass-edge)}
+  .dl.ghost:hover{transform:translateY(-2px); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.22)}
+  .meta{margin-top:10px; text-align:center; font-family:var(--mono); font-size:11.5px; color:var(--ink-faint)}
+
+  /* ---- sections ---- */
+  section{margin-bottom:40px; animation:rise .7s cubic-bezier(.23,1,.32,1) both; animation-delay:.18s}
+  h2{font-size:13px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink-mute); margin-bottom:16px}
+  .panel{background:var(--glass-quiet); border:1px solid var(--hair); border-radius:20px; padding:8px 20px}
+  .strip{list-style:none; counter-reset:s}
+  .strip li{position:relative; padding:15px 0 15px 41px; border-top:1px solid var(--hair);
+    font-size:15px; color:var(--ink-dim); line-height:1.6}
+  .strip li:first-child{border-top:0}
+  .strip li::before{counter-increment:s; content:counter(s);
+    position:absolute; left:0; top:15px;
+    width:26px; height:26px; border-radius:8px; display:grid; place-items:center;
+    background:rgba(56,189,248,.13); color:var(--avionics); font-family:var(--mono); font-size:12px;
+    border:1px solid rgba(56,189,248,.24)}
+  .strip b{color:var(--ink); font-weight:500}
+  .inl{color:var(--avionics); text-decoration:none; border-bottom:1px solid rgba(56,189,248,.35)}
+  .inl:hover{border-bottom-color:var(--avionics)}
+  /* Переносить по границам, а не по буквам: break-word рвал "x_announcer2"
+     посреди слова, и путь читался как две строки мусора. */
+  code{font-family:var(--mono); font-size:.9em; background:rgba(0,0,0,.28); border:1px solid var(--hair);
+    padding:2px 6px; border-radius:6px; color:var(--avionics-soft);
+    word-break:normal; overflow-wrap:break-word}
+
+  /* Панель паков: текст и кнопка — два самостоятельных блока, поэтому flex тут
+     безопасен (голого текста рядом с ними нет). */
+  .packbox{display:flex; gap:26px; align-items:center; padding:22px 22px}
+  @media(max-width:720px){.packbox{flex-direction:column; align-items:stretch; gap:18px}}
+  .packtext{flex:1}
+  .packtext h3{font-size:17px; font-weight:600; letter-spacing:-.015em; margin-bottom:7px}
+  .packtext p{font-size:14.5px; color:var(--ink-dim); line-height:1.55}
+  .packtext b{color:var(--ink); font-weight:500}
+  .codes{margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--ink-faint);
+    line-height:1.7; letter-spacing:.01em}
+  .packdl{flex:none; width:236px}
+  @media(max-width:720px){.packdl{width:auto}}
+  .gate{margin-top:9px; text-align:center; font-size:12px; color:var(--ink-mute);
+    display:flex; align-items:center; justify-content:center; gap:6px}
+  .lock{width:6px;height:6px;border-radius:50%;background:var(--avionics);
+    box-shadow:0 0 8px rgba(56,189,248,.7); flex:none}
+
+  .feats{display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:14px}
+  .feat{background:var(--glass-quiet); border:1px solid var(--hair); border-radius:16px; padding:16px 17px}
+  .feat h3{font-size:15px; font-weight:600; letter-spacing:-.01em; margin-bottom:5px}
+  .feat p{font-size:13.5px; color:var(--ink-mute); line-height:1.5}
+
+  footer{border-top:1px solid var(--hair); padding-top:22px; color:var(--ink-faint); font-size:13px;
+    display:flex; gap:16px; flex-wrap:wrap; align-items:center}
+  footer a{color:var(--ink-mute); text-decoration:none; border-bottom:1px solid transparent; transition:color .18s,border-color .18s}
+  footer a:hover{color:var(--avionics); border-bottom-color:rgba(56,189,248,.5)}
+  footer .sep{margin-left:auto}
+
+  @keyframes rise{from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+<div class="aurora"><b class="c1"></b><b class="c2"></b><b class="c3"></b></div>
+<div class="grain"></div>
+
+<main>
+  <div class="top">
+    <a class="back" href="/">← X-Vatrus</a>
+    <span class="pill"><span class="dot"></span>X-Plane 12</span>
+  </div>
+
+  <div class="hero">
+    <h1>Голос салона<br><span>в вашем X-Plane</span></h1>
+    <p class="lede">X-Announcer играет объявления бортпроводников по ходу рейса: приветствие при посадке
+      пассажиров, брифинг по безопасности, ремни, снижение, касание, высадка. Плагин сам следит за фазой полёта
+      по приборам и <b>узнаёт авиакомпанию по ливрее</b> — на борту «Аэрофлота» звучит «Аэрофлот».</p>
+  </div>
+
+  <div class="versions">
+    <div class="card lead">
+      <div class="vhead"><span class="vname">Версия 2</span><span class="vnum">2.0.0 beta</span></div>
+      <p class="vsub">Нативный плагин. Свой звук, своя панель, русский интерфейс.</p>
+      <ul class="vlist">
+        <li><b>Русский интерфейс</b> целиком, свой шрифт и оформление</li>
+        <li>Выбор варианта реплики <b>по времени суток и типу борта</b> — из тегов в имени файла</li>
+        <li>Вкладка «Библиотека»: видно, что и откуда сыграет, с прослушиванием</li>
+        <li>Ничего не требует, кроме самого X-Plane 12.04 и новее</li>
+        <li class="no">Пока только Windows</li>
+      </ul>
+      <a class="dl primary" href="x-announcer2-2.0.0-beta.zip" download>Скачать для Windows</a>
+      <p class="meta">ZIP · 555 КБ</p>
+    </div>
+
+    <div class="card alt">
+      <div class="vhead"><span class="vname">Версия 1</span><span class="vnum">1.1.5</span></div>
+      <p class="vsub">Скрипт для FlyWithLua. Работает всюду, где работает сам FlyWithLua.</p>
+      <ul class="vlist">
+        <li><b>Windows, macOS и Linux</b></li>
+        <li>Загрузка плана из <b>SimBrief</b> и виджет фазы поверх экрана</li>
+        <li>Та же машина фаз и тот же формат звуковых паков</li>
+        <li class="no">Нужен установленный FlyWithLua</li>
+        <li class="no">Интерфейс английский</li>
+      </ul>
+      <a class="dl ghost" href="x-announcer-1.1.5.zip" download>Скачать для всех систем</a>
+      <p class="meta">ZIP · 138 КБ</p>
+    </div>
+  </div>
+
+  <section class="packs">
+    <h2>Звуковые паки</h2>
+    <div class="panel packbox">
+      <div class="packtext">
+        <h3>Подборка Артёма — 32 набора</h3>
+        <p>Готовая библиотека: по папке на авиакомпанию, распаковать в папку со звуками и больше не думать.
+          Внутри — <b>Аэрофлот, S7, «Победа», Air France, British Airways, Lufthansa, KLM, Qatar, Emirates-соседи
+          и ещё два десятка</b>, плюс набор <code>Default</code>, из которого берутся реплики, если у авиакомпании
+          своей нет.</p>
+        <p class="codes">ACA · AEE · AFL · AFR · ASL · AXM · BAW · CCA · CPA · DAL · DLH · EDW · EIN · ETD · EXS ·
+          FBU · FIN · GFA · IBE · ITY · KLM · LAN · QFA · QLK · QTR · RYR · SAS · SBI · THY · UAL · WZZ · Default</p>
+      </div>
+      <div class="packdl">
+        <a class="dl ghost" href="packs/ua-sound-packs.zip">Скачать подборку</a>
+        <p class="meta">ZIP · 990 МБ · 721 файл</p>
+        <p class="gate"><span class="lock"></span>Нужен вход через Discord</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Установка</h2>
+    <div class="panel">
+      <ol class="strip">
+        <li><b>Версия 2:</b> распакуйте архив в <code>X-Plane 12/Resources/plugins/</code> — рядом с папками
+          других плагинов появится <code>x_announcer2</code>.</li>
+        <li><b>Версия 1:</b> распакуйте в <code>X-Plane 12/Resources/plugins/FlyWithLua/Scripts/</code>.</li>
+        <li>Положите звуковые паки в папку со звуками: по <b>папке на авиакомпанию</b>, названной кодом ИКАО —
+          <code>AFL</code>, <code>SBI</code>, <code>DLH</code>. Внутри — файлы событий:
+          <code>BoardingWelcome.ogg</code>, <code>SafetyBriefing.ogg</code> и так далее. Формат тот же, что у паков
+          MSFS Universal Announcer. Готовая подборка — <a class="inl" href="packs/ua-sound-packs.zip">выше на этой
+          странице</a>.</li>
+        <li>Если своего пака у авиакомпании нет, недостающие реплики берутся из набора <code>Default</code>.</li>
+        <li>Запустите симулятор и откройте панель через меню плагинов. Путь к папке со звуками задаётся
+          на вкладке «Настройки».</li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2>Что оно умеет</h2>
+    <div class="feats">
+      <div class="feat">
+        <h3>Фазы, а не таймеры</h3>
+        <p>Десять фаз от подготовки до высадки. Переходы считаются по приборам: питание, огни, маяк, двигатели,
+          скорость, высота, вертикальная.</p>
+      </div>
+      <div class="feat">
+        <h3>Авиакомпания по ливрее</h3>
+        <p>Имя папки ливреи, бортовой номер и тип борта против таблицы из 5774 перевозчиков. Не угадала —
+          набор выбирается вручную.</p>
+      </div>
+      <div class="feat">
+        <h3>Варианты реплик</h3>
+        <p>Файл с тегом <code>[Night]</code> не сыграет днём, а <code>[A320]</code> — не на «Боинге». Ночная
+          и дневная версии приветствия живут в паке рядом.</p>
+      </div>
+      <div class="feat">
+        <h3>Музыка при посадке</h3>
+        <p>Фон, пока пассажиры садятся, с приглушением на время объявления. Останавливается сама, когда рейс
+          трогается с места.</p>
+      </div>
+      <div class="feat">
+        <h3>Отметки маршрута</h3>
+        <p>Половина и три четверти пути — по плану FMS, а не по часам. Короткие рейсы отметок не получают.</p>
+      </div>
+      <div class="feat">
+        <h3>Честный отчёт</h3>
+        <p>Панель показывает, что видит плагин и что звучит прямо сейчас. Беззвучный файл в паке она называет
+          вслух, а не молчит.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Исходники версии 1 и обсуждение —
+      <a href="https://github.com/arty-s/x-announcer">github.com/arty-s/x-announcer</a></span>
+    <span class="sep">X-Vatrus</span>
+  </footer>
+</main>
+</body>
+</html>
