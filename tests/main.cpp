@@ -20,6 +20,7 @@
 #include "core/airline.h"
 #include "core/settings.h"
 #include "pack_layout_test.h"
+#include "report_body_test.h"
 #include "scenario.h"
 #include "settings_test.h"
 
@@ -157,6 +158,9 @@ int main(int argc, char** argv) {
     std::cout << "\n";
 
     xa::test::runPackLayoutChecks(&checks, &failed);
+    std::cout << "\n";
+
+    xa::test::runReportBodyChecks(&checks, &failed);
     std::cout << "\n";
 
     for (const fs::path& file : files) {

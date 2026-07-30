@@ -41,6 +41,9 @@ public:
     const core::Snapshot& lastSnapshot() const { return snapshot_; }
     AudioPlayer& player() { return player_; }
 
+    // The ICAO type of the aeroplane in use, as X-Plane reports it (A20N, B738).
+    const std::string& aircraftIcao() const { return aircraftIcao_; }
+
     const core::AirlineVerdict& airline() const { return airline_; }
     const core::AirlineIndex& airlines() const { return airlines_; }
     // Re-runs detection now. Also used by the panel when the pack was chosen by

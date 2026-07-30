@@ -18,6 +18,7 @@
 #include "XPLMUtilities.h"
 
 #include "plugin/announcer.h"
+#include "plugin/report.h"
 #include "plugin/ui/main_window.h"
 #include "plugin/xa_log.h"
 #include "plugin/xa_paths.h"
@@ -209,6 +210,10 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
 
 PLUGIN_API void XPluginStop(void) {
     XPLMUnregisterFlightLoopCallback(&flightLoopCb, nullptr);
+    // Before anything else is torn down: a report thread still running while
+    // X-Plane unloads this DLL would be writing into memory that no longer
+    // exists, and that takes the simulator with it.
+    xa::report::shutdown();
     g_announcer.reset();
     if (g_toggleCommand != nullptr) {
         XPLMUnregisterCommandHandler(g_toggleCommand, &toggleCommandHandler, 1, nullptr);

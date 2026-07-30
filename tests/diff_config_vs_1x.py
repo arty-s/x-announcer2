@@ -26,7 +26,20 @@ DEFAULT_XA_TEST = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(_
 
 # Keys 1.x has that v2 has no code for yet. They are not failures - they are the
 # to-do list - but they are printed every run so the list cannot be forgotten.
-NOT_PORTED = {"simbrief_id", "widget", "widget_mode", "widget_opacity", "widget_x", "widget_y"}
+NOT_PORTED = {"widget", "widget_mode", "widget_opacity", "widget_x", "widget_y"}
+
+# Keys 1.x has that v2 will never grow. Unlike DROPPED, the key is still written
+# back to config.ini untouched - it costs nothing and keeps a file readable by
+# both versions.
+WONT_PORT = {
+    "simbrief_id": "SimBrief is not coming to v2 (decided 2026-07-30). In 1.x the "
+                   "plan does exactly two things - an 'use this airline' button "
+                   "and an information card - and touches no announcement, phase "
+                   "or file choice. The airline is already read from the livery "
+                   "(155 liveries agree) and the route now comes from the FMS, so "
+                   "the price - libcurl, HTTPS, a thread, somebody else's JSON, "
+                   "and a SimBrief account per user - buys nothing",
+}
 
 # Keys 1.x has that v2 deliberately does NOT have.
 DROPPED = {
@@ -123,6 +136,9 @@ def main() -> int:
     for key, want in sorted(one.items()):
         if key in NOT_PORTED:
             continue
+        if key in WONT_PORT:
+            print(f"  = {key}: not porting on purpose - {WONT_PORT[key]}")
+            continue
         if key in DROPPED:
             print(f"  - {key}: dropped on purpose - {DROPPED[key]}")
             continue
@@ -156,7 +172,7 @@ def main() -> int:
     compared = len(set(one) & set(two)) - len(DELIBERATE)
     print(f"every shared default matches ({compared} keys compared, "
           f"{len(DELIBERATE)} deliberate differences, {len(DROPPED)} dropped, "
-          f"{len(missing)} not ported yet)")
+          f"{len(WONT_PORT)} not porting on purpose, {len(missing)} not ported yet)")
     return 0
 
 

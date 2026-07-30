@@ -58,6 +58,7 @@ add_library(xa_core STATIC
     src/core/airline.cpp
     src/core/settings.cpp
     src/core/pack_layout.cpp
+    src/core/report_body.cpp
 )
 target_include_directories(xa_core PUBLIC src)
 if(MSVC)
@@ -74,6 +75,7 @@ add_executable(xa_test
     tests/airline_test.cpp
     tests/settings_test.cpp
     tests/pack_layout_test.cpp
+    tests/report_body_test.cpp
 )
 target_link_libraries(xa_test PRIVATE xa_core xa_audio)
 target_include_directories(xa_test PRIVATE tests)
@@ -100,6 +102,7 @@ add_library(x_announcer2 MODULE
     src/plugin/sim_state.cpp
     src/plugin/file_library.cpp
     src/plugin/audio_player.cpp
+    src/plugin/report.cpp
     src/plugin/xa_log.cpp
     src/plugin/xa_paths.cpp
     src/plugin/imgui_xp/xp_imgui_window.cpp
@@ -126,6 +129,9 @@ if(WIN32)
     target_link_libraries(x_announcer2 PRIVATE
         "${XA_SDK}/Libraries/Win/XPLM_64.lib"
         opengl32
+        # The log report goes out over WinHTTP: it ships with Windows, so the
+        # plugin gains HTTPS without vendoring libcurl or a TLS stack.
+        winhttp
     )
     # Plugins must use the DLL runtime: a static CRT burns TLS slots and breaks
     # neighbouring plugins (X-Plane SDK "Building and Installing Plugins").

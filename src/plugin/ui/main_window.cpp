@@ -5,13 +5,19 @@
 #include <cstring>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <utility>
 
+#include "XPLMUtilities.h"
+
 #include "core/settings.h"
 #include "plugin/announcer.h"
+#include "plugin/report.h"
 #include "plugin/ui/theme.h"
+#include "plugin/version.h"
 #include "plugin/xa_log.h"
+#include "plugin/xa_paths.h"
 
 namespace xa {
 namespace {
@@ -678,7 +684,97 @@ void MainWindow::drawSettingsTab() {
 
 }
 
+// The send block sits at the TOP of the tab, above the log itself. In 1.x the
+// one button nobody could find was the one placed under a long list - a button
+// that cannot be found is a button that is not there.
+void MainWindow::drawReportBlock() {
+    ImGui::PushTextWrapPos(0.0f);
+    small("Если что-то не сработало — отправьте журнал, и я увижу, что произошло. "
+          "Уйдут только строки X-Announcer: фазы, объявления, имена звуковых файлов, "
+          "версии сима и борта. Строки чужих плагинов не уходят, имя пользователя в "
+          "путях заменяется.");
+    ImGui::PopTextWrapPos();
+
+    const report::Status status = report::status();
+    const bool sending = status.state == report::State::Sending;
+
+    ImGui::BeginDisabled(sending);
+    if (ImGui::Button(sending ? "Отправляю…" : "Отправить журнал")) {
+        report::Input input;
+        input.meta.plugin = kPluginVersion;
+        int xplane = 0;
+        int xplm = 0;
+        XPLMHostApplicationID host = xplm_Host_Unknown;
+        XPLMGetVersions(&xplane, &xplm, &host);
+        char versions[64];
+        std::snprintf(versions, sizeof(versions), "%d (XPLM %d)", xplane, xplm);
+        input.meta.xplane = versions;
+#ifdef _WIN32
+        input.meta.os = "windows";
+#elif defined(__APPLE__)
+        input.meta.os = "macos";
+#else
+        input.meta.os = "linux";
+#endif
+        input.meta.aircraft = announcer_->aircraftIcao();
+        input.meta.pack = announcer_->library().pack();
+        // The settings go as the file reads them, minus the sound folder: the
+        // path answers no question a report asks, and it is the one line in
+        // config.ini that is about this person's disk rather than the plugin.
+        {
+            std::istringstream lines(core::writeSettings(announcer_->settings()));
+            std::string line;
+            while (std::getline(lines, line)) {
+                if (line.rfind("library", 0) == 0) {
+                    continue;
+                }
+                input.meta.settings += line;
+                input.meta.settings += '\n';
+            }
+        }
+        char systemPath[1024] = {0};
+        XPLMGetSystemPath(systemPath);
+        input.logPath = std::string(systemPath) + "Log.txt";
+        if (!pluginDir().empty()) {
+            input.copyPath = pluginDir() + "/report_last.txt";
+        }
+        report::send(input);
+    }
+    ImGui::EndDisabled();
+
+    switch (status.state) {
+        case report::State::Idle:
+            break;
+        case report::State::Sending:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(status.message.c_str());
+            break;
+        case report::State::Sent:
+            ImGui::SameLine();
+            ImGui::TextUnformatted("Отправлено. Номер");
+            ImGui::SameLine();
+            ImGui::TextColored(ui::kAccent, "%s", status.ticket.c_str());
+            ImGui::SameLine();
+            if (ImGui::Button("Скопировать номер")) {
+                ImGui::SetClipboardText(status.ticket.c_str());
+            }
+            small("Номер пригодится, если будете писать о проблеме.");
+            break;
+        case report::State::Failed:
+            ImGui::SameLine();
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextUnformatted(("Не ушло: " + status.message + ".").c_str());
+            ImGui::PopTextWrapPos();
+            break;
+    }
+    // Said in every state, because it is what makes the promise above checkable:
+    // the file holds exactly what was sent, or would have been.
+    small("Копия последнего отчёта — в файле report_last.txt рядом с плагином.");
+    ImGui::Separator();
+}
+
 void MainWindow::drawLogTab() {
+    drawReportBlock();
     if (ImGui::BeginChild("log", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders)) {
         // Wrapped, not clipped. Log lines carry full paths and dataref names,
         // and a line whose end is off the edge is a line that cannot be read

@@ -26,6 +26,8 @@ private:
     void drawLibraryTab();
     void drawSettingsTab();
     void drawLogTab();
+    // The "send the log" block at the head of the Log tab.
+    void drawReportBlock();
 
     // ImGui edits text in place, so the one free-text setting left in the panel
     // needs a buffer of its own. It is refilled from the settings whenever the
