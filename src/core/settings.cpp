@@ -128,8 +128,8 @@ const Help kHelp[] = {
     {"airline_manual", "код ICAO пака, который использовать принудительно"},
     {"announce_bus", "шина X-Plane для объявлений: interior, exterior, ui, com1, com2, ground"},
     {"music_bus", "шина для фоновой музыки; может совпадать с announce_bus - каналы независимы"},
-    {"volume", "громкость объявлений, 0.0 - 1.0"},
-    {"music_volume", "громкость фоновой музыки, 0.0 - 1.0"},
+    {"volume", "громкость объявлений, 0.0 - 2.0 (выше 1.0 - усиление)"},
+    {"music_volume", "громкость фоновой музыки, 0.0 - 2.0 (выше 1.0 - усиление)"},
     {"duck", "во сколько раз приглушать музыку на время объявления"},
     {"enabled", "false - объявления полностью выключены"},
     {"boarding_music", "играть музыку между приветствиями при посадке пассажиров"},
@@ -209,9 +209,13 @@ Settings parseSettings(const std::string& text, std::vector<std::string>* proble
         } else if (key == "music_bus") {
             parseChoice(key, value, audioBusNames(), &s.musicBus, problems);
         } else if (key == "volume") {
-            parseNumber(key, value, 0.0, 1.0, &s.volume, problems);
+            // The ceiling is 2.0, not 1.0: a pack levelled to the target can
+            // still be too quiet once X-Plane's own interior and master sliders
+            // have had their say, and FMOD takes a gain above unity. The default
+            // stays 0.85, so a file written by an older version sounds the same.
+            parseNumber(key, value, 0.0, kMaxVolume, &s.volume, problems);
         } else if (key == "music_volume") {
-            parseNumber(key, value, 0.0, 1.0, &s.musicVolume, problems);
+            parseNumber(key, value, 0.0, kMaxVolume, &s.musicVolume, problems);
         } else if (key == "duck") {
             parseNumber(key, value, 0.0, 1.0, &s.duck, problems);
         } else if (key == "enabled") {

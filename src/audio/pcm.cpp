@@ -1,5 +1,6 @@
 #include "audio/pcm.h"
 
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 
@@ -21,6 +22,86 @@ float Pcm::peak() const {
         }
     }
     return static_cast<float>(loudest) / 32767.0f;
+}
+
+float Pcm::loudnessDb() const {
+    if (samples.empty()) {
+        return -120.0f;
+    }
+    const float top = peak();
+    if (top <= 0.0f) {
+        return -120.0f;  // digital silence: there is no level to speak of
+    }
+    // Everything more than 30 dB below the loudest moment is taken to be the
+    // room between words. Without this gate a line with a two-second pause in it
+    // measures quieter than the same line said twice, and the plugin would raise
+    // it for having a pause.
+    const float gate = top * 0.0316f;  // -30 dB
+    double sum = 0.0;
+    std::size_t counted = 0;
+    for (const int16_t sample : samples) {
+        const float value = static_cast<float>(sample) / 32767.0f;
+        const float magnitude = value < 0.0f ? -value : value;
+        if (magnitude < gate) {
+            continue;
+        }
+        sum += static_cast<double>(value) * value;
+        ++counted;
+    }
+    if (counted == 0) {
+        return -120.0f;
+    }
+    const double rms = std::sqrt(sum / static_cast<double>(counted));
+    if (rms <= 0.0) {
+        return -120.0f;
+    }
+    return static_cast<float>(20.0 * std::log10(rms));
+}
+
+float normalisationGain(const Pcm& pcm, float targetDb) {
+    const float loudness = pcm.loudnessDb();
+    if (loudness <= -119.0f) {
+        return 1.0f;  // silence stays silence, placeholder files included
+    }
+    float deltaDb = targetDb - loudness;
+    if (deltaDb > kMaxBoostDb) {
+        deltaDb = kMaxBoostDb;
+    }
+    if (deltaDb < -kMaxCutDb) {
+        deltaDb = -kMaxCutDb;
+    }
+    return static_cast<float>(std::pow(10.0, deltaDb / 20.0));
+}
+
+void applyGain(Pcm* pcm, float gain, float ceiling) {
+    if (pcm == nullptr || pcm->samples.empty() || gain == 1.0f) {
+        return;
+    }
+    if (ceiling <= 0.0f || ceiling > 1.0f) {
+        ceiling = 0.97f;
+    }
+    // Below the knee the signal is untouched; above it, the remaining headroom is
+    // shared out along a curve that reaches the ceiling but never crosses it. The
+    // knee sits well under the ceiling so that ordinary speech - which lives
+    // below it - passes through exactly as recorded.
+    const float knee = ceiling * 0.6f;
+    const float span = ceiling - knee;
+    for (int16_t& sample : pcm->samples) {
+        float value = static_cast<float>(sample) / 32767.0f * gain;
+        const float magnitude = value < 0.0f ? -value : value;
+        if (magnitude > knee) {
+            const float over = magnitude - knee;
+            // A saturating curve: as `over` grows the result approaches the
+            // ceiling from below, so a loud transient bends instead of squaring
+            // off into the buzz that hard clipping makes.
+            const float shaped = knee + span * (over / (over + span));
+            value = value < 0.0f ? -shaped : shaped;
+        }
+        const float scaled = value * 32767.0f;
+        sample = static_cast<int16_t>(scaled > 32767.0f    ? 32767.0f
+                                      : scaled < -32767.0f ? -32767.0f
+                                                           : scaled);
+    }
 }
 
 namespace {

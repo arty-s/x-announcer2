@@ -71,6 +71,11 @@ private:
     void* seatbelt_ = nullptr;
     std::string seatbeltName_;
     int seatbeltOn_ = 1;
+    // The AUTO detent of a three-position switch, or -1. In AUTO the switch stops
+    // reporting the sign, so the sign is read from the annunciator instead.
+    int seatbeltAuto_ = -1;
+    void* seatbeltSign_ = nullptr;
+    mutable bool loggedAuto_ = false;
 };
 
 }  // namespace xa

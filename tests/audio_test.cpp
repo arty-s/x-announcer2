@@ -209,11 +209,81 @@ void realLibraryChecks(const char* libraryDir) {
 
 }  // namespace
 
+namespace {
+
+// A sine at a given level, long enough for the gate to have something to chew.
+audio::Pcm tone(float amplitude, int samples = 16000) {
+    audio::Pcm pcm;
+    pcm.sampleRate = 16000;
+    pcm.channels = 1;
+    pcm.samples.reserve(static_cast<std::size_t>(samples));
+    for (int i = 0; i < samples; ++i) {
+        const double phase = 2.0 * 3.14159265358979 * 220.0 * i / 16000.0;
+        pcm.samples.push_back(static_cast<int16_t>(std::sin(phase) * amplitude * 32767.0f));
+    }
+    return pcm;
+}
+
+// The library is mixed 19 dB apart, and the slider has to mean the same thing in
+// every pack. These pin the levelling: how much it may move a file, what it
+// refuses to touch, and that it never delivers a signal that clips.
+void levellingChecks() {
+    const audio::Pcm loud = tone(0.7f);
+    const audio::Pcm quiet = tone(0.05f);
+
+    check(loud.loudnessDb() > quiet.loudnessDb() + 15.0f,
+          "a quiet file measures far below a loud one");
+    check(std::fabs(loud.loudnessDb() - 20.0f * std::log10(0.7f / std::sqrt(2.0f))) < 1.0f,
+          "a sine measures at its own RMS, within a decibel");
+
+    check(audio::normalisationGain(quiet) > 1.0f, "a quiet file is raised");
+    check(audio::normalisationGain(loud) < 1.0f, "a file above the target is brought down");
+    check(20.0f * std::log10(audio::normalisationGain(tone(0.0005f))) <= audio::kMaxBoostDb + 0.01f,
+          "the boost is capped - a file 40 dB down is broken, not quiet");
+    check(20.0f * std::log10(audio::normalisationGain(tone(0.99f))) >= -audio::kMaxCutDb - 0.01f,
+          "and so is the cut");
+
+    // A silent placeholder must stay silent: four packs ship one, and the panel
+    // reports it. Raising it would turn a diagnosable fault into hiss.
+    audio::Pcm silence;
+    silence.sampleRate = 16000;
+    silence.channels = 1;
+    silence.samples.assign(16000, 0);
+    check(audio::normalisationGain(silence) == 1.0f, "digital silence is left alone");
+    check(silence.loudnessDb() <= -119.0f, "and reports itself as silence, not as a level");
+
+    // The pause between two words must not make a line measure as quiet.
+    audio::Pcm withPause = tone(0.5f, 8000);
+    withPause.samples.resize(24000, 0);
+    check(std::fabs(withPause.loudnessDb() - tone(0.5f).loudnessDb()) < 1.0f,
+          "a long pause does not make a line measure quieter");
+
+    // The real reason a limiter is needed: pack files already peak near 0 dBFS,
+    // so any real boost has to bend the peaks rather than square them off.
+    audio::Pcm nearFull = tone(0.9f);
+    audio::applyGain(&nearFull, 4.0f);
+    check(nearFull.peak() <= 0.971f, "gain never pushes samples past the ceiling");
+    check(nearFull.peak() > 0.9f, "and still uses the headroom it has");
+
+    audio::Pcm gentle = tone(0.2f);
+    const float before = gentle.loudnessDb();
+    audio::applyGain(&gentle, 2.0f);
+    check(gentle.loudnessDb() > before + 5.0f, "a quiet file really does get louder");
+
+    audio::Pcm untouched = tone(0.3f);
+    const audio::Pcm copy = untouched;
+    audio::applyGain(&untouched, 1.0f);
+    check(untouched.samples == copy.samples, "a gain of exactly 1 changes not one sample");
+}
+
+}  // namespace
+
 void runAudioChecks(const char* libraryDir, int* checks, int* failed) {
     g_checks = checks;
     g_failed = failed;
     std::cout << "-- audio decoding\n";
     syntheticChecks();
+    levellingChecks();
     realLibraryChecks(libraryDir);
 }
 

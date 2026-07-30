@@ -1,5 +1,6 @@
 #include "plugin/audio_player.h"
 
+#include <cmath>
 #include <fstream>
 #include <vector>
 
@@ -55,6 +56,19 @@ void AudioPlayer::worker() {
             log("audio: %s failed to decode - %s", job.event.c_str(), error.c_str());
             continue;
         }
+
+        // Packs come from thirty-two different people and are mixed 19 dB apart,
+        // so the volume slider means something different in each one. Each file
+        // is brought to the same level here, on the decoded samples, where the
+        // measurement is exact and costs one pass over a few seconds of audio.
+        const float measured = pcm->loudnessDb();
+        const float normalise = audio::normalisationGain(*pcm);
+        if (normalise != 1.0f) {
+            audio::applyGain(pcm.get(), normalise);
+        }
+        log("audio: %s measured %.1f dBFS, levelled by %+.1f dB", job.event.c_str(),
+            static_cast<double>(measured),
+            static_cast<double>(20.0f * std::log10(normalise)));
 
         std::lock_guard<std::mutex> lock(mutex_);
         ready_.push_back(Ready{job.event, job.path, std::move(pcm), job.gain, job.music});

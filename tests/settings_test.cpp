@@ -193,8 +193,12 @@ void runSettingsChecks(int* checks, int* failed) {
         std::vector<std::string> problems;
         const core::Settings s =
             core::parseSettings("volume = 5\nduck = -1\nwindow_scale = 99\n", &problems);
-        check(s.volume == 1.0 && s.duck == 0.0 && s.windowScale == 3.0,
+        check(s.volume == core::kMaxVolume && s.duck == 0.0 && s.windowScale == 3.0,
               "out-of-range numbers are clamped, not obeyed");
+        // The volume ceiling is above unity on purpose - X-Plane's own sliders
+        // sit downstream of ours and can leave a levelled pack too quiet.
+        const core::Settings boosted = core::parseSettings("volume = 1.6\n", nullptr);
+        check(boosted.volume == 1.6, "a gain above 1.0 is a legal volume, not a mistake");
         check(problems.size() == 3, "each clamp is reported");
     }
     {

@@ -17,6 +17,13 @@
 
 namespace xa::core {
 
+// How far the volume sliders go. Above 1.0 is real gain, not a nicety: the
+// packs are levelled to a common target, but X-Plane's own interior and master
+// sliders sit downstream of us and can leave the result too quiet no matter
+// what we do. FMOD accepts a channel gain above unity, and the plugin logs the
+// FMOD result, so a refusal would be visible rather than silent.
+inline constexpr double kMaxVolume = 2.0;
+
 struct Settings {
     // Where the sound packs are. Empty means the Sound_packs folder beside the
     // plugin, which is where a new user is meant to put them - and staying empty

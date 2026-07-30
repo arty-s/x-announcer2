@@ -30,6 +30,15 @@ struct Pcm {
     // measure, because the samples are already decoded and in hand.
     float peak() const;
 
+    // Loudness, as the level of the parts that are actually speech: samples far
+    // below the loudest are left out of the sum, so a line with a long pause in
+    // it does not measure as quiet. Returned in dBFS; -inf comes back as -120.
+    //
+    // RMS and not peak, because the packs are already peak-normalised - measured
+    // across the library, the median file peaks at -0.1 dBFS while its RMS
+    // ranges over 19 dB. Peak says nothing about how loud a file sounds.
+    float loudnessDb() const;
+
     double seconds() const {
         if (sampleRate <= 0 || channels <= 0) {
             return 0.0;
@@ -37,6 +46,32 @@ struct Pcm {
         return static_cast<double>(samples.size()) / (sampleRate * channels);
     }
 };
+
+// How loud a file is brought to. Chosen from the library rather than invented:
+// across 62 files from all 32 packs the median RMS is -18.6 dBFS, so this is the
+// level most of the library already sits at, and normalising toward it moves the
+// outliers instead of moving everybody's world.
+inline constexpr float kTargetLoudnessDb = -18.6f;
+
+// How far a single file may be moved. A pack recorded 25 dB down is not a quiet
+// pack, it is a broken file, and hauling it up would only amplify its hiss.
+inline constexpr float kMaxBoostDb = 12.0f;
+inline constexpr float kMaxCutDb = 8.0f;
+
+// The gain that brings this file to the target, within those limits. 1.0 for a
+// file already at the target, and for silence - there is nothing there to raise,
+// and a silent placeholder must keep sounding silent so the panel can say so.
+float normalisationGain(const Pcm& pcm, float targetDb = kTargetLoudnessDb);
+
+// Applies `gain` to the samples, keeping the peaks inside `ceiling`.
+//
+// Plain multiplication is not enough here. The quiet files are quiet in RMS but
+// already peak near 0 dBFS - RYR's safety briefing sits at -30 dBFS RMS with a
+// -4 dBFS peak - so the honest gain before clipping is about 4 dB, nowhere near
+// what "too quiet" needs. What is above the knee is therefore compressed rather
+// than clipped: a soft knee bends the loudest sounds instead of squaring them
+// off, which on speech is heard as loudness and not as distortion.
+void applyGain(Pcm* pcm, float gain, float ceiling = 0.97f);
 
 enum class Format { Unknown, Ogg, Mp3, Wav };
 

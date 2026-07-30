@@ -23,21 +23,40 @@ float readFloat(void* ref, float fallback) {
     return ref == nullptr ? fallback : XPLMGetDataf(static_cast<XPLMDataRef>(ref));
 }
 
+// What X-Plane itself publishes about the sign, as opposed to the switch: "Seatbelt
+// sign on, yes or no", read-only. This is the answer to the question the plugin is
+// actually asking, and it is the only source that can be right while a switch sits
+// in AUTO - there the crew has handed the decision to the aeroplane, and the switch
+// stops reporting the sign.
+const char* const kSeatbeltAnnunciator = "sim/cockpit2/annunciators/fasten_seatbelt";
+
 // Seat belt sign, most specific first. `on` is the value that means "lit": the
 // Zibo switch is a three-position knob (0 off, 1 auto, 2 on), the rest are plain
 // on/off. Sourced from the aircraft in Artyom's hangar, verified in the sim.
 struct SeatbeltCandidate {
     const char* name;
     int on;
+    int autoPosition;  // the "AUTO" detent, or -1 where the switch has none
 };
 
 const SeatbeltCandidate kSeatbeltCandidates[] = {
-    {"AirbusFBW/SeatBeltSignsOn", 1},                            // ToLiss
-    {"b737ng/equipment/alerts/crew/cabin/CRW_seatbelts_on", 1},   // 737NG Series
-    {"Rotate/aircraft/controls/seatbelts_lts", 1},                // MD-11
-    {"laminar/B738/toggle_switch/seatbelt_sign_pos", 2},          // Zibo
-    {"sim/cockpit2/switches/fasten_seat_belts", 1},
-    {"sim/cockpit/switches/fasten_seat_belts", 1},
+    {"AirbusFBW/SeatBeltSignsOn", 1, -1},                            // ToLiss
+    {"b737ng/equipment/alerts/crew/cabin/CRW_seatbelts_on", 1, -1},  // 737NG Series
+    {"Rotate/aircraft/controls/seatbelts_lts", 1, -1},               // MD-11
+    {"laminar/B738/toggle_switch/seatbelt_sign_pos", 2, 1},          // Zibo: off/auto/on
+    // FlightFactor 777 v2. The widget is passSignsSeatbeltsSwitch with
+    // off(0)/auto(1)/on(2), read from modules/idxData_B772.txt; the dataref name
+    // follows the aircraft's own convention, 1-sim/ckpt/<widget>/anim, seen on
+    // some fifty other switches. NOT verified in the sim - the string lives in
+    // an encrypted module - so if it is wrong the log says which dataref was
+    // bound instead, and the annunciator below still answers.
+    {"1-sim/ckpt/passSignsSeatbeltsSwitch/anim", 2, 1},
+    // X-Plane's own answer to the only question that matters - "is the sign
+    // lit". Read-only, and an aircraft has to drive it deliberately, so it comes
+    // after the add-ons that publish their own switch.
+    {kSeatbeltAnnunciator, 1, -1},
+    {"sim/cockpit2/switches/fasten_seat_belts", 1, -1},
+    {"sim/cockpit/switches/fasten_seat_belts", 1, -1},
 };
 
 // X-Plane itself publishes no logo light; only add-ons do.
@@ -79,6 +98,9 @@ void SimState::bind(const std::string& seatbeltOverride) {
 
     seatbelt_ = nullptr;
     seatbeltName_.clear();
+    seatbeltAuto_ = -1;
+    // Bound whatever else is found: it is what the switch is asked to defer to.
+    seatbeltSign_ = find(kSeatbeltAnnunciator);
     if (!seatbeltOverride.empty()) {
         if ((seatbelt_ = find(seatbeltOverride.c_str())) != nullptr) {
             seatbeltName_ = seatbeltOverride;
@@ -93,12 +115,16 @@ void SimState::bind(const std::string& seatbeltOverride) {
             if ((seatbelt_ = find(candidate.name)) != nullptr) {
                 seatbeltName_ = candidate.name;
                 seatbeltOn_ = candidate.on;
+                seatbeltAuto_ = candidate.autoPosition;
                 break;
             }
         }
     }
-    log("datarefs: seatbelt %s, logo %s",
+    log("datarefs: seatbelt %s%s, logo %s",
         seatbeltName_.empty() ? "none published by this aircraft" : seatbeltName_.c_str(),
+        seatbeltAuto_ >= 0 ? (seatbeltSign_ != nullptr ? " (has AUTO; the sign itself is readable)"
+                                                       : " (has AUTO, but the sign is not readable)")
+                           : "",
         logo_ != nullptr ? "found" : "none");
 }
 
@@ -165,7 +191,24 @@ core::Snapshot SimState::read() const {
                 value = seatbeltOn_;
             }
         }
-        s.seatbelt = value >= seatbeltOn_ ? core::Tri::On : core::Tri::Off;
+        // A switch in AUTO is not a state of the sign - it is the crew saying
+        // "aeroplane, you decide". Reading the detent then answers the wrong
+        // question: on a 777 above ten thousand feet the sign goes out while the
+        // switch stays exactly where it was, which is precisely the transition
+        // this plugin exists to announce. Where the aeroplane publishes the sign
+        // itself, that is what gets read.
+        if (seatbeltAuto_ >= 0 && value == seatbeltAuto_ && seatbeltSign_ != nullptr) {
+            const bool lit = XPLMGetDatai(static_cast<XPLMDataRef>(seatbeltSign_)) == 1;
+            s.seatbelt = lit ? core::Tri::On : core::Tri::Off;
+            if (!loggedAuto_) {
+                loggedAuto_ = true;
+                log("datarefs: the seatbelt switch is in AUTO - reading the sign from %s instead",
+                    kSeatbeltAnnunciator);
+            }
+        } else {
+            s.seatbelt = value >= seatbeltOn_ ? core::Tri::On : core::Tri::Off;
+            loggedAuto_ = false;
+        }
     }
 
     // ENGN_running is int[16] and the SDK warns that reading past the end of an

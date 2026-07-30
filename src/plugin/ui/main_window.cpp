@@ -544,14 +544,14 @@ void MainWindow::drawSettingsTab() {
     {
         float value = static_cast<float>(settings.volume);
         label("Громкость объявлений");
-        if (ImGui::SliderFloat("##volume", &value, 0.0f, 1.0f, "%.2f")) {
+        if (ImGui::SliderFloat("##volume", &value, 0.0f, static_cast<float>(core::kMaxVolume), "%.2f")) {
             settings.volume = value;
             announcer_->settingsChanged();
         }
 
         value = static_cast<float>(settings.musicVolume);
         label("Громкость музыки");
-        if (ImGui::SliderFloat("##music_volume", &value, 0.0f, 1.0f, "%.2f")) {
+        if (ImGui::SliderFloat("##music_volume", &value, 0.0f, static_cast<float>(core::kMaxVolume), "%.2f")) {
             settings.musicVolume = value;
             announcer_->settingsChanged();
         }
