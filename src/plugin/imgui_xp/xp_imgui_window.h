@@ -22,6 +22,13 @@ public:
 
     void setVisible(bool visible);
     bool isVisible() const;
+
+    // Lets go of every input ImGui still believes is held. The plugin calls it
+    // whenever the window appears or disappears: X-Plane hides a window without
+    // telling the plugin, and delivers no MouseUp for a button released outside
+    // it. Either one leaves ImGui holding an input, and a held input eats the
+    // mouse wheel until something clears it.
+    void releaseHeldInput();
     XPLMWindowID id() const { return window_; }
 
     // Resizes to `width` x `height` boxels keeping the top-left corner where it

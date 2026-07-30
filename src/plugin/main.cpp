@@ -108,6 +108,11 @@ void rememberWindowState() {
         return;
     }
     g_announcer->settings().panelOpen = visible;
+    // Whichever way the window went, let go of anything ImGui still thinks is
+    // held. A button released outside the window never reaches the plugin, and
+    // an input ImGui believes is held swallows the mouse wheel until something
+    // clears it - which is why reopening the panel was curing a dead scroll.
+    g_window->releaseHeldInput();
     g_announcer->settingsChanged();
     syncMenuMark();
 }

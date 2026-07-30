@@ -375,7 +375,10 @@ void MainWindow::drawLibraryTab() {
             preview += "  (" + airlineName + ")";
         }
     } else {
-        preview = settings.airlineManual;
+        // The mode is stated in the control itself, not only in the line under
+        // it: the combo is the first thing read, and "AFL" alone looks exactly
+        // like a livery that was recognised as Aeroflot.
+        preview = settings.airlineManual + "  (вручную)";
     }
 
     label("Набор звуков");
@@ -403,6 +406,30 @@ void MainWindow::drawLibraryTab() {
     ImGui::SameLine();
     if (ImGui::Button("Пересканировать")) {
         announcer_->rescanLibrary();
+    }
+
+    // Only when there is somewhere to go back to. Returning to automatic is not
+    // folded into "Пересканировать": that button re-reads the folder, and a
+    // button that quietly does a second thing beyond what it says would take a
+    // deliberately pinned pack away from someone who pressed it after copying
+    // files in.
+    const bool recognised = airline.code != "Default";
+    if (!settings.autoAirline() && recognised) {
+        ImGui::SameLine();
+        if (ImGui::Button("Вернуть авто")) {
+            settings.airlineMode = "auto";
+            announcer_->resolveAirline();
+            announcer_->settingsChanged();
+        }
+    }
+
+    // Which pack plays and which airline was recognised are two questions, and
+    // in manual mode they have different answers - so the panel says outright
+    // that the choice is a human one, and then reports the verdict anyway.
+    if (!settings.autoAirline()) {
+        small(("Набор закреплён вручную: " + settings.airlineManual +
+               ". Смена ливреи его не меняет.")
+                  .c_str());
     }
 
     // Recognising the airline and owning its sounds stay two separate lines.
@@ -546,7 +573,11 @@ void MainWindow::drawSettingsTab() {
              "Фон, пока пассажиры садятся, и после высадки."},
             {"Шум салона", &settings.flight.cabinNoise,
              "Ровный гул салона, только в воздухе."},
-            {"Посадка сама", &settings.flight.autoBoarding,
+            // "Авто-определение посадки" по просьбе Артёма, плюс одно слово:
+            // в этом же списке есть «Реакция на посадку», и там посадка - это
+            // приземление. Без «пассажиров» два соседних переключателя называют
+            // одним словом разные вещи.
+            {"Авто-определение посадки пассажиров", &settings.flight.autoBoarding,
              "Плагин сам решает, что посадка пассажиров началась: борт запитан, "
              "стоит, двигатели и маяк выключены."},
             {"Командир", &settings.flight.pilotWelcome,
@@ -602,8 +633,7 @@ void MainWindow::drawSettingsTab() {
             ImGui::TextDisabled("  Читается:");
         }
         ImGui::TextDisabled("  %s", announcer_->libraryDir().c_str());
-        ImGui::TextDisabled("  Внутри — по папке на авиакомпанию (SBI, AFL, DLH…), "
-                            "как у MSFS Universal Announcer.");
+        ImGui::TextDisabled("  Внутри — по папке на авиакомпанию (SBI, AFL, DLH…).");
         ImGui::PopTextWrapPos();
 
         if (ui::checkBox("Брать недостающие из набора Default",

@@ -191,9 +191,14 @@ void Announcer::onRelocated() {
 }
 
 void Announcer::applyPackChoice() {
-    if (settings_.autoAirline()) {
-        resolveAirline();
-    } else {
+    // The verdict is worked out whatever the mode. Which pack plays is a
+    // different question from which airline was recognised, and pinning a pack
+    // by hand is not a reason to stop answering the second one: the panel prints
+    // that answer on the Library tab, and with the verdict left unasked it read
+    // "Default - nothing recognised" over a livery the plugin knows perfectly
+    // well. A panel must report reality, not a question nobody put.
+    resolveAirline();
+    if (!settings_.autoAirline()) {
         library_.selectPackForAirline(settings_.airlineManual);
     }
 }
@@ -222,7 +227,12 @@ void Announcer::resolveAirline() {
     const std::string name = airlines_.nameOf(airline_.code);
     log("airline: %s%s - %s", airline_.code.c_str(),
         name.empty() ? "" : (" (" + name + ")").c_str(), airline_.source.c_str());
-    library_.selectPackForAirline(airline_.code);
+    // Recognising the airline and choosing the pack are separate acts: only the
+    // automatic mode lets the verdict pick, so that a pack pinned by hand is not
+    // taken away by the next livery change.
+    if (settings_.autoAirline()) {
+        library_.selectPackForAirline(airline_.code);
+    }
 }
 
 void Announcer::execute(const core::Intent& intent) {

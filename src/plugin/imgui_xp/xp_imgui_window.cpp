@@ -13,6 +13,10 @@
 #include "XPLMDefs.h"
 #include "XPLMGraphics.h"
 
+// For ActiveId and ClearActiveID: whether ImGui is holding an input is not
+// something the public header exposes, and it is the whole question here.
+#include "imgui_internal.h"
+
 #include "plugin/imgui_xp/xp_imgui_render.h"
 #include "plugin/ui/theme.h"
 #include "plugin/xa_log.h"
@@ -319,12 +323,51 @@ int XpImguiWindow::handleWheel(int x, int y, int wheel, int clicks) {
     updateMousePos(x, y);
     ImGui::SetCurrentContext(context_);
     ImGuiIO& io = ImGui::GetIO();
+
+    // The wheel stopped scrolling once, mid-session, and closing and reopening
+    // the window brought it back - which rules out the wheel events themselves
+    // and points at ImGui state that survives between frames. Two things in
+    // ImGui swallow the wheel: an active item (a widget still considered
+    // held) and a mouse button ImGui believes is down. A MouseUp is exactly
+    // what X-Plane can fail to deliver if the button is released outside the
+    // window, and a held button is not something that can be cleared by looking
+    // at it - so it is reported here by name the next time it happens.
+    ImGuiContext* g = ImGui::GetCurrentContext();
+    const bool stuckButton = io.MouseDown[0] || io.MouseDown[1] || io.MouseDown[2];
+    if (g != nullptr && (stuckButton || g->ActiveId != 0)) {
+        log("окно: колесо пришло (%d), но ImGui держит ввод - активный элемент %u, "
+            "кнопки %d%d%d. Прокрутки не будет, пока это не отпустят",
+            clicks, g->ActiveId, io.MouseDown[0] ? 1 : 0, io.MouseDown[1] ? 1 : 0,
+            io.MouseDown[2] ? 1 : 0);
+    }
+
     if (wheel == 0) {
         io.AddMouseWheelEvent(0.0f, static_cast<float>(clicks));
     } else {
         io.AddMouseWheelEvent(static_cast<float>(clicks), 0.0f);
     }
     return 1;
+}
+
+// Everything ImGui thinks is being held, let go of. X-Plane hides a decorated
+// window without telling the plugin, and it does not deliver a MouseUp for a
+// button released outside the window: either one leaves ImGui holding an input
+// forever, and a held input eats the mouse wheel. Reopening the window used to
+// be the only cure; now the window cures itself.
+void XpImguiWindow::releaseHeldInput() {
+    if (context_ == nullptr) {
+        return;
+    }
+    ImGui::SetCurrentContext(context_);
+    ImGuiIO& io = ImGui::GetIO();
+    for (int button = 0; button < 3; ++button) {
+        if (io.MouseDown[button]) {
+            io.AddMouseButtonEvent(button, false);
+        }
+    }
+    if (ImGuiContext* g = ImGui::GetCurrentContext(); g != nullptr && g->ActiveId != 0) {
+        ImGui::ClearActiveID();
+    }
 }
 
 void XpImguiWindow::handleKey(char key, XPLMKeyFlags flags, char virtualKey, int losingFocus) {

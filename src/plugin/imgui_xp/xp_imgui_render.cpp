@@ -58,6 +58,7 @@ void boxelToPixel(const GlTransform& t, float bx, float by, float* px, float* py
 // A wrong scissor rectangle looks exactly like "the window is broken", so the
 // first frame states on the record what it computed. One line, once per run.
 bool g_loggedGeometry = false;
+bool g_loggedCulling = false;
 
 }  // namespace
 
@@ -88,6 +89,20 @@ void renderImGuiDrawData(ImDrawData* drawData, int windowLeft, int windowTop) {
             xform.viewport[0], xform.viewport[1], xform.viewport[2], xform.viewport[3],
             windowLeft, windowTop, px, py);
     }
+
+    // Back-face culling is not part of what XPLMSetGraphicsState covers, and
+    // X-Plane draws the world with it on. A flat interface has no back faces to
+    // speak of, but "front" is decided by winding order, and ImGui's own shapes
+    // happen to wind the way the sim expects while triangles assembled by hand
+    // may not. The aurora was built by hand and vanished completely the day it
+    // stopped being a stack of ImGui circles - every one of its triangles was
+    // being thrown away before it could be blended.
+    if (!g_loggedCulling) {
+        g_loggedCulling = true;
+        log("render: отсечение задних граней при входе %s - выключаю, интерфейсу оно не нужно",
+            glIsEnabled(GL_CULL_FACE) ? "ВКЛЮЧЕНО" : "выключено");
+    }
+    glDisable(GL_CULL_FACE);
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);

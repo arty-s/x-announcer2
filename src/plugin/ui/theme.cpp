@@ -11,6 +11,7 @@
 #include "imgui_internal.h"
 
 #include "plugin/imgui_xp/xp_imgui_window.h"
+#include "plugin/xa_log.h"
 
 namespace xa::ui {
 namespace {
@@ -49,10 +50,15 @@ struct Blob {
     float peak;
 };
 
+// The peaks were first chosen blind - the aurora had never once reached the
+// screen, so nobody could say whether they were right. At four times these the
+// light was called "охрененный", and at four times these the quietest ink (42%
+// white) starts losing the contrast it needs over a lit blue. Half of what was
+// praised keeps the gradient unmistakable and the text where it was.
 const Blob kBlobs[] = {
-    {0.14f, 0.06f, 0.62f, rgb(56, 189, 248), 0.22f},
-    {0.88f, 0.28f, 0.56f, rgb(99, 102, 241), 0.19f},
-    {0.60f, 1.04f, 0.64f, rgb(168, 85, 247), 0.15f},
+    {0.14f, 0.06f, 0.62f, rgb(56, 189, 248), 0.44f},
+    {0.88f, 0.28f, 0.56f, rgb(99, 102, 241), 0.38f},
+    {0.60f, 1.04f, 0.64f, rgb(168, 85, 247), 0.30f},
 };
 
 // A soft round pool of light, faded out by interpolating alpha across the
