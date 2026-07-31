@@ -143,6 +143,25 @@ void Engine::restartFlight(const std::string& reason) {
     resetFlight(reason, Phase::Preflight);
 }
 
+void Engine::startBoarding(const std::string& reason) {
+    // A full reset, not just a phase change: pressed on the ground before
+    // departure there is nothing to lose, and pressed at any other moment the
+    // person is plainly saying "we are starting a new flight, boarding now".
+    // Half-starting - new phase over an old flight's memory - would leave every
+    // once() of the previous leg marked as already said.
+    resetFlight(reason, Phase::Boarding);
+    // resetFlight rebuilds FlightState, so lastWelcome is back at -1e9 and the
+    // welcome is due on the next tick rather than one boarding_repeat later.
+    once("BoardingStarted", reason);
+}
+
+void Engine::skipAnnouncement() {
+    stopAnnouncement();
+    // Clearing the gap as well, or the queue sits idle for the usual pause after
+    // something the person deliberately cut short.
+    gapUntil_ = wallClock_;
+}
+
 void Engine::resetFlight(const std::string& reason, Phase startPhase) {
     f_ = FlightState();
     f_.phase = startPhase;
@@ -368,7 +387,6 @@ void Engine::stateMachine(const Snapshot& s) {
         const bool powered = aircraftPowered(s);
         if (s.onGround && s.allEnginesOff() && !s.beacon && s.gsKt < 1.0) {
             if (config_.autoBoarding && powered) {
-                f_.boardingOpen = true;
                 setPhase(Phase::Boarding, "cabin ready");
                 once("BoardingStarted", "cabin ready");
             }

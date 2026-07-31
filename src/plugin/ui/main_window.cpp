@@ -362,6 +362,34 @@ void MainWindow::drawFlightTab() {
                            wanted.c_str());
         ImGui::PopTextWrapPos();
     }
+
+    // The row 1.x had and the port dropped. It lives at the foot of the tab, in
+    // one fixed place, rather than beside whatever it happens to affect: this
+    // panel is read in glances over the instruments, and a control that moves
+    // with the phase has to be found again every time.
+    section("Действия");
+    // Without this the cabin cannot be opened at all when auto_boarding is off -
+    // the setting's help text has always promised a button. It announces and
+    // starts the flight over from boarding, exactly as the automatic path does.
+    if (ImGui::Button("Начать посадку")) {
+        engine.startBoarding("кнопка на панели");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Пропустить")) {
+        engine.skipAnnouncement();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Сбросить рейс")) {
+        engine.restartFlight("кнопка на панели");
+    }
+    // Both of the outer buttons throw away the flight in progress, and in the
+    // cockpit they are a mis-click apart. Saying so costs one dim line; finding
+    // out by losing a leg costs the leg.
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextColored(ui::kEngraved,
+                       "«Начать посадку» и «Сбросить рейс» начинают рейс заново — всё, что уже "
+                       "было объявлено, забывается.");
+    ImGui::PopTextWrapPos();
 }
 
 void MainWindow::drawLibraryTab() {
@@ -583,9 +611,13 @@ void MainWindow::drawSettingsTab() {
             // в этом же списке есть «Реакция на посадку», и там посадка - это
             // приземление. Без «пассажиров» два соседних переключателя называют
             // одним словом разные вещи.
+            // Второе предложение — про ВЫКЛЮЧЕННОЕ состояние, и оно обязательно:
+            // выключатель, который только отнимает, выглядит сломанным. Пока
+            // кнопки не было, он таким и был.
             {"Авто-определение посадки пассажиров", &settings.flight.autoBoarding,
              "Плагин сам решает, что посадка пассажиров началась: борт запитан, "
-             "стоит, двигатели и маяк выключены."},
+             "стоит, двигатели и маяк выключены. Выключено — посадку начинает "
+             "кнопка на вкладке «Рейс»."},
             {"Командир", &settings.flight.pilotWelcome,
              "Приветствие командира следом за приветствием экипажа."},
             {"Двери", &settings.flight.doorCalls,

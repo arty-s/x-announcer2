@@ -93,6 +93,13 @@ class Scenario:
                         if key == "rate":
                             rate = float(value)
                     self.steps.append(("advance", float(rest[0]), rate))
+                elif verb == "press":
+                    # Something the PERSON does, through the panel or a command
+                    # bound to the cockpit. Unlike `event` below, this one IS
+                    # comparable: 1.x exposes the same actions as plain Lua
+                    # functions, so both implementations get driven and their
+                    # traces have to line up like any other behaviour.
+                    self.steps.append(("press", rest[0] if rest else ""))
                 elif verb == "expect":
                     pass  # checked by the C++ bench; the diff compares traces
                 elif verb == "event":
@@ -247,6 +254,16 @@ def run_1x(x1_root: str, scenario: Scenario) -> list[tuple[float, str, str]]:
     for step in scenario.steps:
         if step[0] == "set":
             apply_set(sim, step[1])
+        elif step[0] == "press":
+            actions = {
+                "start_boarding": "xa_start_boarding",
+                "skip": "xa_skip",
+            }
+            name = actions.get(step[1])
+            if name is None:
+                raise SystemExit(f"unknown press action '{step[1]}'")
+            lua.globals()[name]()
+            poll()
         else:
             _, seconds, rate = step
             frozen = (sim.values.get("sim/time/paused", 0) == 1 or

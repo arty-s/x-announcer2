@@ -162,6 +162,25 @@ private:
             } else {
                 fail(lineNo, "unknown event '" + words[1] + "'");
             }
+        } else if (verb == "press") {
+            // Something the PERSON does - a button on the flight tab, or the
+            // X-Plane command behind it. Deliberately not folded into `event`:
+            // that verb means "the simulator told the plugin", and its cases are
+            // skipped by the differential run because in 1.x they restart the Lua
+            // engine. These are the opposite - 1.x exposes the same actions as
+            // plain Lua functions, so both implementations can be driven and the
+            // traces have to match.
+            if (words.size() < 2) {
+                fail(lineNo, "press needs an action");
+                return;
+            }
+            if (words[1] == "start_boarding") {
+                engine().startBoarding("manual boarding");
+            } else if (words[1] == "skip") {
+                engine().skipAnnouncement();
+            } else {
+                fail(lineNo, "unknown action '" + words[1] + "'");
+            }
         } else if (verb == "v2only") {
             // Says this scenario is not comparable with 1.x, and why. Nothing
             // happens here - the C++ bench flies it like any other; it is the

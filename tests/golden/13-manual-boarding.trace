@@ -1,0 +1,3 @@
+    60.0 reset BOARDING (manual boarding)
+    60.5 play BoardingStarted (manual boarding)
+    69.0 play BoardingWelcome (boarding)

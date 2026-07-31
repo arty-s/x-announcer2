@@ -1,0 +1,38 @@
+# Boarding started by hand, with the automatic path switched off.
+#
+# auto_boarding = false was a switch that only took things away: it stopped the
+# plugin opening the cabin by itself, and nothing else could open it either, so
+# the whole of boarding was unreachable on that setting. Its own help text has
+# always said "false - только кнопкой" while no button existed.
+#
+# Both halves are flown here, because the positive half alone would pass just as
+# happily if the setting were ignored altogether:
+#   * powered up on stand with auto_boarding off - the cabin must stay shut;
+#   * the button pressed - boarding starts, and it ANNOUNCES, exactly as the
+#     automatic path does.
+
+config auto_boarding=0 boarding_music=0 boarding_repeat=100000
+library BoardingStarted BoardingWelcome:12 SafetyBriefing:30
+
+set hour=12 seatbelt=0
+
+# ---- awake on stand, and that is not enough ---------------------------------
+# Every condition the automatic path waits for is true here: on the ground,
+# engines off, beacon off, stationary, powered. Only the setting is off.
+set battery=1 nav=1
+advance 60
+expect phase PREFLIGHT
+expect not-played BoardingStarted
+expect not-played BoardingWelcome
+
+# ---- somebody presses the button --------------------------------------------
+press start_boarding
+advance 30
+expect phase BOARDING
+expect played BoardingStarted
+expect played BoardingWelcome
+
+# ---- and the automatic path is still off ------------------------------------
+# Pressing the button must not quietly switch auto_boarding back on: a second
+# press has to be the only thing that could start boarding again.
+expect play-count BoardingStarted 1

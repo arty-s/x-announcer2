@@ -29,6 +29,10 @@ constexpr const char* kPluginName = "X-Announcer 2";
 constexpr const char* kPluginSig = "ru.xannouncer.xa2";
 constexpr const char* kPluginDesc = "Cabin announcements for X-Plane 12";
 constexpr const char* kToggleCommand = "x_announcer2/toggle_window";
+// The names 1.x used, minus its FlyWithLua/ prefix - somebody moving between the
+// two branches should find the same three commands under the same last words.
+constexpr const char* kStartBoardingCommand = "x_announcer2/start_boarding";
+constexpr const char* kSkipCommand = "x_announcer2/skip";
 
 // After this many consecutive failures a callback is considered broken and is
 // left alone; better a dead feature than a crashed simulator.
@@ -39,6 +43,8 @@ std::unique_ptr<xa::MainWindow> g_window;
 XPLMMenuID g_menu = nullptr;
 int g_menuToggleIndex = -1;
 XPLMCommandRef g_toggleCommand = nullptr;
+XPLMCommandRef g_startBoardingCommand = nullptr;
+XPLMCommandRef g_skipCommand = nullptr;
 bool g_fuseBlown = false;
 // Set while X-Plane is putting the plugin away. Hiding the window then is our
 // doing, not the user's, and must not be written down as "they closed it".
@@ -58,6 +64,9 @@ Fuse g_fuseStart{"start"};
 Fuse g_fuseFrame{"flight loop"};
 Fuse g_fuseMenu{"menu toggle"};
 Fuse g_fuseCommand{"toggle command"};
+// One fuse per call site, never a shared one - see the note above.
+Fuse g_fuseBoardingCommand{"start boarding command"};
+Fuse g_fuseSkipCommand{"skip command"};
 Fuse g_fuseEnable{"enable"};
 Fuse g_fuseMessage{"plane loaded"};
 
@@ -156,6 +165,31 @@ int toggleCommandHandler(XPLMCommandRef /*cmd*/, XPLMCommandPhase phase, void* /
     return 0;
 }
 
+// Bound to a switch in the cockpit, this is the only way to open the cabin with
+// auto_boarding off without going to the panel first.
+int startBoardingCommandHandler(XPLMCommandRef /*cmd*/, XPLMCommandPhase phase,
+                                void* /*refcon*/) {
+    if (phase == xplm_CommandBegin) {
+        guarded(g_fuseBoardingCommand, [] {
+            if (g_announcer) {
+                g_announcer->engine().startBoarding("command");
+            }
+        });
+    }
+    return 0;
+}
+
+int skipCommandHandler(XPLMCommandRef /*cmd*/, XPLMCommandPhase phase, void* /*refcon*/) {
+    if (phase == xplm_CommandBegin) {
+        guarded(g_fuseSkipCommand, [] {
+            if (g_announcer) {
+                g_announcer->engine().skipAnnouncement();
+            }
+        });
+    }
+    return 0;
+}
+
 }  // namespace
 
 PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
@@ -197,6 +231,15 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
             g_toggleCommand = XPLMCreateCommand(kToggleCommand, "Toggle the X-Announcer 2 window");
             XPLMRegisterCommandHandler(g_toggleCommand, &toggleCommandHandler, 1, nullptr);
 
+            g_startBoardingCommand =
+                XPLMCreateCommand(kStartBoardingCommand, "X-Announcer 2: start boarding");
+            XPLMRegisterCommandHandler(g_startBoardingCommand, &startBoardingCommandHandler, 1,
+                                       nullptr);
+
+            g_skipCommand =
+                XPLMCreateCommand(kSkipCommand, "X-Announcer 2: skip current announcement");
+            XPLMRegisterCommandHandler(g_skipCommand, &skipCommandHandler, 1, nullptr);
+
             g_announcer = std::make_unique<xa::Announcer>();
             g_announcer->start();
             XPLMRegisterFlightLoopCallback(&flightLoopCb, -1.0f, nullptr);
@@ -218,6 +261,15 @@ PLUGIN_API void XPluginStop(void) {
     if (g_toggleCommand != nullptr) {
         XPLMUnregisterCommandHandler(g_toggleCommand, &toggleCommandHandler, 1, nullptr);
         g_toggleCommand = nullptr;
+    }
+    if (g_startBoardingCommand != nullptr) {
+        XPLMUnregisterCommandHandler(g_startBoardingCommand, &startBoardingCommandHandler, 1,
+                                     nullptr);
+        g_startBoardingCommand = nullptr;
+    }
+    if (g_skipCommand != nullptr) {
+        XPLMUnregisterCommandHandler(g_skipCommand, &skipCommandHandler, 1, nullptr);
+        g_skipCommand = nullptr;
     }
     g_window.reset();
     if (g_menu != nullptr) {

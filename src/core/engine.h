@@ -56,6 +56,23 @@ public:
     // shortly after if the aeroplane really is flying.
     void restartFlight(const std::string& reason);
 
+    // Boarding because somebody said so: the button on the flight tab, or the
+    // X-Plane command behind it bound to a switch in the cockpit. This is the
+    // other half of auto_boarding - with the setting off, nothing else in the
+    // plugin can ever open the cabin, and the setting's own help text has always
+    // promised a button ("false - только кнопкой").
+    //
+    // It announces BoardingStarted, exactly as the automatic path does. Both
+    // branches used to miss that: they jumped straight into the phase, and
+    // once() for that event lives in the Preflight branch, which manual boarding
+    // never passes through. Two ways into one action are not allowed to sound
+    // different - whichever one a person uses, the cabin says the same thing.
+    void startBoarding(const std::string& reason);
+
+    // Cut the announcement that is playing and let the next one start at once,
+    // instead of waiting out the usual gap.
+    void skipAnnouncement();
+
     std::vector<Intent> drainIntents();
 
     Phase phase() const { return f_.phase; }
@@ -100,7 +117,6 @@ private:
         double phaseSince = 0.0;
         std::map<std::string, double> done;   // event -> sim time it was queued
         std::map<std::string, double> ended;  // event -> sim time playback ended
-        bool boardingOpen = false;
         double lastWelcome = -1e9;
         Tri seatbeltPrev = Tri::Unknown;
         double lastSeatbelt = -1e9;
