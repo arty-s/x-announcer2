@@ -134,12 +134,22 @@ $cfg = @(
 
 # UTF8 without BOM: the updater reads these as plain text, and a BOM ends up in
 # the first path of the first line.
+#
+# The names are not a guess and not copied from another module: they are the
+# only ones SkunkcraftsUpdater.exe v3.2d actually carries. Pulled out of the
+# binary after it refused the first attempt with "Remote configuration file is
+# missing important information" - the module had been given
+# skunkcrafts_updater_config.txt and skunkcrafts_updater_ignorelist.txt, and
+# NEITHER string exists anywhere in the updater. It asks the module for
+# skunkcrafts_updater.cfg - the same file name the install carries - and for
+# skunkcrafts_updater_ignore.txt. (SGES publishes the _config.txt spelling as
+# well; it is not what this version reads.)
 $enc = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllLines((Join-Path $out "skunkcrafts_updater_whitelist.txt"), $whitelist, $enc)
 [System.IO.File]::WriteAllLines((Join-Path $out "skunkcrafts_updater_sizeslist.txt"), $sizes, $enc)
-[System.IO.File]::WriteAllLines((Join-Path $out "skunkcrafts_updater_ignorelist.txt"), $userOwned, $enc)
+[System.IO.File]::WriteAllLines((Join-Path $out "skunkcrafts_updater_ignore.txt"), $userOwned, $enc)
 [System.IO.File]::WriteAllLines((Join-Path $out "skunkcrafts_updater_blacklist.txt"), @(), $enc)
-[System.IO.File]::WriteAllLines((Join-Path $out "skunkcrafts_updater_config.txt"), $cfg, $enc)
+[System.IO.File]::WriteAllLines((Join-Path $out "skunkcrafts_updater.cfg"), $cfg, $enc)
 # Into the staged folder as well, so that build.ps1 -Install puts it beside the
 # plugin: an install without this file is invisible to the updater.
 [System.IO.File]::WriteAllLines((Join-Path $staged "skunkcrafts_updater.cfg"), $cfg, $enc)
