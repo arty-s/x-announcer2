@@ -252,3 +252,19 @@ powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -Install
 Updater. Выкладка версии — `scripts\release.ps1` (сборка, CRC32, манифесты
 модуля); адрес выгрузки в репозитории не хранится и берётся из переменных
 окружения `XA_DEPLOY_TARGET`, `XA_DEPLOY_PATH`, `XA_DEPLOY_KEY`.
+
+## Лицензии
+
+Код — MIT, см. `LICENSE`.
+
+Чужое, что лежит в репозитории и живёт по своим условиям:
+
+- `assets/airlines.txt` собран из базы авиакомпаний
+  [OpenFlights](https://openflights.org/data.html): сама база под
+  [ODbL v1.0](https://opendatacommons.org/licenses/odbl/1-0/), её содержимое —
+  под [DbCL v1.0](https://opendatacommons.org/licenses/dbcl/1-0/).
+- `third_party/SDK` — X-Plane Plugin SDK, лицензия внутри (`license.txt`).
+- `third_party/imgui` — Dear ImGui, MIT (`LICENSE.txt`).
+- `assets/fonts/Roboto-Medium.ttf` — Roboto, Apache License 2.0.
+
+Звуковые паки в репозиторий не входят и остаются за своими авторами.
