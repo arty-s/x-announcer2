@@ -1,8 +1,16 @@
 # X-Announcer 2
 
+Cabin crew announcements for X-Plane 12 — a native C++/XPLM plugin, Windows only
+for now. It reads the same sound packs as MSFS Universal Announcer and Fenix, no
+conversion needed, picks the airline from the livery and follows the flight by
+the sim's own data. The interface is Russian; so is the rest of this file.
+Version 1.x — a FlyWithLua script that runs on Windows, macOS and Linux — lives
+at [arty-s/x-announcer](https://github.com/arty-s/x-announcer). Downloads and
+sound packs: <https://xvatrus.ru/xannouncer/>. MIT licensed.
+
 Объявления бортпроводников для X-Plane 12 — вторая версия, нативный плагин на
-C++ и XPLM SDK. Ветка 1.x (`D:\claude2\x-announcer\`, FlyWithLua, v1.1.4) остаётся
-в проде и служит источником доменной логики; сюда она переносится по частям.
+C++ и XPLM SDK. Ветка 1.x (FlyWithLua, v1.1.5) остаётся в проде и служит
+источником доменной логики; сюда она переносится по частям.
 
 Почему ушли с FlyWithLua: один растровый шрифт без кириллицы, отсутствие TLS,
 недостижимая прозрачность окна ImGui и недокументированное подмножество
@@ -233,12 +241,14 @@ powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -Install
 роняет симулятор. Все точки входа обёрнуты, десять ошибок подряд выключают
 плагин с явной записью в журнал.
 
-## Проверено на машине Артёма
+## Сборка и окружение
 
-- Собирается: MSVC 14.44, C++17, `/MD`, без предупреждений.
+- MSVC 14.44, C++17, `/MD`, собирается без предупреждений.
 - `.xpl` — 64-битная DLL, экспортирует `XPluginStart/Stop/Enable/Disable/ReceiveMessage`.
-- Зависимости: `XPLM_64.dll`, `OPENGL32.dll`, системные + MSVC-рантайм (на месте).
-- Установлен в `E:\SteamLibrary\...\X-Plane 12\Resources\plugins\x_announcer2`,
-  хэш сверен.
+- Зависимости: `XPLM_64.dll`, `OPENGL32.dll`, системные + MSVC-рантайм.
+- Ставится в `X-Plane 12\Resources\plugins\x_announcer2\`.
 
-**Не проверено:** живой запуск в симуляторе. До него всё остальное не имеет смысла.
+Плагин летает у живых пользователей; обновления приходят через SkunkCrafts
+Updater. Выкладка версии — `scripts\release.ps1` (сборка, CRC32, манифесты
+модуля); адрес выгрузки в репозитории не хранится и берётся из переменных
+окружения `XA_DEPLOY_TARGET`, `XA_DEPLOY_PATH`, `XA_DEPLOY_KEY`.

@@ -21,9 +21,13 @@ param(
     [switch]$Deploy,
     [string]$Version = "",
     [string]$ModuleUrl = "https://xvatrus.ru/xannouncer/update",
-    [string]$VpsTarget = "root@83.217.201.120",
-    [string]$VpsPath = "/etc/x-vatrus/www/xannouncer/update",
-    [string]$SshKey = "$env:USERPROFILE\.ssh\vatrus_vps"
+    # Where -Deploy uploads the module. Kept out of the repository on purpose:
+    # set XA_DEPLOY_TARGET (user@host), XA_DEPLOY_PATH and XA_DEPLOY_KEY in the
+    # environment, or pass them on the command line. Building and generating the
+    # module needs none of this.
+    [string]$VpsTarget = "$env:XA_DEPLOY_TARGET",
+    [string]$VpsPath = "$env:XA_DEPLOY_PATH",
+    [string]$SshKey = "$env:XA_DEPLOY_KEY"
 )
 
 $ErrorActionPreference = "Stop"
@@ -161,6 +165,10 @@ Write-Host ("  {0} files, {1:N0} bytes, version {2}" -f $copied, $totalBytes, $V
 Write-Host "  cfg for the install: build\skunkcrafts_updater.cfg"
 
 if ($Deploy) {
+    if ($VpsTarget -eq "" -or $VpsPath -eq "") {
+        throw "-Deploy needs a target: set XA_DEPLOY_TARGET (user@host) and XA_DEPLOY_PATH, or pass -VpsTarget and -VpsPath."
+    }
+    if ($SshKey -eq "") { throw "-Deploy needs XA_DEPLOY_KEY or -SshKey: path to the ssh private key." }
     Write-Host ""
     Write-Host "Deploying to $VpsTarget`:$VpsPath"
     & ssh -i $SshKey $VpsTarget "mkdir -p '$VpsPath'"
