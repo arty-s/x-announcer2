@@ -6,6 +6,6 @@ namespace xa {
 
 // No "-dev" suffix any more: real people are flying this, and the SkunkCrafts
 // updater compares this number against the one the module publishes.
-constexpr const char* kPluginVersion = "2.0.0";
+constexpr const char* kPluginVersion = "2.0.1";
 
 }  // namespace xa
