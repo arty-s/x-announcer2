@@ -19,6 +19,19 @@ public:
     // ones and says so - a typo there must not leave the cabin sign dead.
     void bind(const std::string& seatbeltOverride = std::string());
 
+    // Looks for the seat belt sign again, and only for it. Plugin load order is
+    // not guaranteed and an aeroplane's own plugin registers its datarefs when it
+    // pleases, so the search that ran at XPLM_MSG_PLANE_LOADED can easily have
+    // been a moment too early. Cheap: a handful of XPLMFindDataRef calls, and it
+    // stops asking as soon as the aeroplane's own dataref turns up.
+    // Returns true when the binding changed, so the caller can stop.
+    bool retrySeatbelt(const std::string& seatbeltOverride);
+
+    // True while the sign is being read from a stock dataref rather than from
+    // one the aeroplane published itself. Stock names always resolve, so this is
+    // NOT "nothing was found" - it is "nothing better was found yet".
+    bool seatbeltIsFallback() const { return seatbeltFallback_; }
+
     core::Snapshot read() const;
 
     // Who we are flying, as opposed to how we are flying it. Read separately
@@ -68,14 +81,37 @@ private:
     void* latitude_ = nullptr;
     void* longitude_ = nullptr;
 
+    // How a switch sitting in its AUTO detent is turned into "is the sign lit".
+    enum class AutoRule {
+        None,          // the switch has no AUTO detent, or the dataref IS the lamp
+        FlapsOrGear,   // what the 737 does itself: lit with flaps out or gear down
+        SignThenFlaps  // believe the annunciator once it has been seen lit, else flaps/gear
+    };
+
+    // Finds the seat belt sign and fills in seatbelt*_. Split out of bind() so
+    // that the retry can redo just this part.
+    bool bindSeatbelt(const std::string& seatbeltOverride, bool announce);
+    bool seatbeltLit() const;
+
     void* seatbelt_ = nullptr;
     std::string seatbeltName_;
     int seatbeltOn_ = 1;
     // The AUTO detent of a three-position switch, or -1. In AUTO the switch stops
-    // reporting the sign, so the sign is read from the annunciator instead.
+    // reporting the sign, so the sign has to be worked out some other way.
     int seatbeltAuto_ = -1;
-    void* seatbeltSign_ = nullptr;
+    AutoRule seatbeltRule_ = AutoRule::None;
+    bool seatbeltFallback_ = true;
+    void* seatbeltSign_ = nullptr;   // sim/cockpit2/annunciators/fasten_seatbelt
+    void* seatbeltStock2_ = nullptr; // sim/cockpit2/switches/fasten_seat_belts
+    void* seatbeltStock1_ = nullptr; // sim/cockpit/switches/fasten_seat_belts
+    void* flapRatio_ = nullptr;
+    void* gearHandle_ = nullptr;
+    void* paxOxygen_ = nullptr;
     mutable bool loggedAuto_ = false;
+    // The annunciator is only trusted once it has been seen lit: on aeroplanes
+    // that run their own cabin signs it exists, reads zero for the whole flight,
+    // and a switch in AUTO read through it would report a sign that never lights.
+    mutable bool signSeenLit_ = false;
 };
 
 }  // namespace xa

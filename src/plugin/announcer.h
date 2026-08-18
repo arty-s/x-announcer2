@@ -14,6 +14,7 @@
 #include "core/engine.h"
 #include "core/settings.h"
 #include "plugin/audio_player.h"
+#include "plugin/dataref_probe.h"
 #include "plugin/file_library.h"
 #include "plugin/sim_state.h"
 
@@ -82,9 +83,12 @@ public:
 
 private:
     void execute(const core::Intent& intent);
+    // Starts the two-minute hunt for the aeroplane's own seat belt dataref.
+    void beginSeatbeltSearch();
 
     core::Settings settings_;
     SimState sim_;
+    DatarefProbe probe_;
     FileSoundLibrary library_;
     AudioPlayer player_;
     core::AirlineIndex airlines_;
@@ -102,6 +106,13 @@ private:
     bool duckApplied_ = false;
 
     std::string appliedSeatbelt_;  // rebinding datarefs is only worth it on change
+    // An aeroplane's own plugin registers its datarefs when it pleases, and the
+    // load order is not guaranteed, so the search for the seat belt sign keeps
+    // going for a while after the aeroplane arrives instead of being decided in
+    // the one instant X-Plane sent the message.
+    double seatbeltSearchUntil_ = -1.0;
+    double nextSeatbeltRetry_ = 0.0;
+    bool seatbeltSearchGaveUp_ = false;
     bool settingsDirty_ = false;
     double settingsDirtySince_ = 0.0;
 };

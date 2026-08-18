@@ -545,6 +545,31 @@ void Engine::stateMachine(const Snapshot& s) {
         once("CallCabinSecureLanding", "cabin secure");
     }
 
+    // Every move of the sign is written down, whatever comes of it. Without this
+    // a report saying "I flipped the switch and nothing happened" cannot be told
+    // apart from a wrong dataref: both look like a log with no seat belt line in
+    // it. The rule below is untouched by this - it only gets explained.
+    if (s.seatbelt != Tri::Unknown && s.seatbelt != f_.seatbeltNotePrev) {
+        const Tri from = f_.seatbeltNotePrev;
+        f_.seatbeltNotePrev = s.seatbelt;
+        const char* const now = s.seatbelt == Tri::On ? "горит" : "погашено";
+        if (from == Tri::Unknown) {
+            note("табло ремней: %s (первое чтение)", now);
+        } else if (s.seatbelt == Tri::Off) {
+            note("табло ремней: погашено");
+        } else if (s.onGround) {
+            note("табло ремней: горит - объявления не будет, самолёт на земле");
+        } else if (s.aglFt <= 5000.0) {
+            note("табло ремней: горит - объявления не будет, %.0f футов над землёй из нужных 5000",
+                 s.aglFt);
+        } else if (simClock_ - f_.lastSeatbelt <= 180.0) {
+            note("табло ремней: горит - объявления не будет, с прошлого прошло %.0f с из 180",
+                 simClock_ - f_.lastSeatbelt);
+        } else {
+            note("табло ремней: горит");
+        }
+    }
+
     // The seat belt sign drives a PA in every airborne phase.
     if (!s.onGround && s.seatbelt != Tri::Unknown) {
         if (f_.seatbeltPrev == Tri::Off && s.seatbelt == Tri::On) {

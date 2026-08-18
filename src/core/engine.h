@@ -119,6 +119,10 @@ private:
         std::map<std::string, double> ended;  // event -> sim time playback ended
         double lastWelcome = -1e9;
         Tri seatbeltPrev = Tri::Unknown;
+        // Diagnostics only, deliberately separate from seatbeltPrev above: that
+        // one is updated in the air alone, and moving it would change when the
+        // announcement fires and quietly break the comparison against 1.x.
+        Tri seatbeltNotePrev = Tri::Unknown;
         double lastSeatbelt = -1e9;
         std::optional<double> levelSince;
         std::optional<double> descentSince;

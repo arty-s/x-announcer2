@@ -121,7 +121,20 @@ void Announcer::applySettings() {
     if (settings_.seatbeltDref != appliedSeatbelt_) {
         appliedSeatbelt_ = settings_.seatbeltDref;
         sim_.bind(settings_.seatbeltDref);
+        beginSeatbeltSearch();
     }
+    probe_.setEnabled(settings_.datarefProbe);
+}
+
+// The seat belt sign is looked for over the next couple of minutes rather than
+// once. Plugin load order is not guaranteed - Laminar's own advice is to resolve
+// other people's datarefs in the flight loop, not when a message arrives - and
+// an aeroplane whose datarefs turn up a second late would otherwise be read
+// through a stock dataref its systems never write, for the whole flight.
+void Announcer::beginSeatbeltSearch() {
+    seatbeltSearchUntil_ = wallSeconds() + 120.0;
+    nextSeatbeltRetry_ = 0.0;
+    seatbeltSearchGaveUp_ = false;
 }
 
 void Announcer::settingsChanged(bool rescanLibraryToo) {
@@ -162,6 +175,8 @@ void Announcer::start() {
     // rebinds on change and would otherwise skip it when no override is set.
     appliedSeatbelt_ = settings_.seatbeltDref;
     sim_.bind(appliedSeatbelt_);
+    beginSeatbeltSearch();
+    probe_.reset();
     applySettings();
     rescanLibrary();
     const int carriers = airlines_.loadFile(assetPath("airlines.txt"));
@@ -178,6 +193,8 @@ void Announcer::onAircraftLoaded() {
     // Add-on datarefs come and go with the aircraft, so the bindings are redone
     // rather than trusted. The seat belt sign in particular is aircraft-specific.
     sim_.bind(settings_.seatbeltDref);
+    beginSeatbeltSearch();
+    probe_.reset();
     lastLivery_.clear();  // force a fresh verdict for the new aeroplane
     aircraftIcao_ = sim_.readIdentity().icao;
     // And the flight starts over. Nothing in the datarefs says the aeroplane was
@@ -302,6 +319,21 @@ void Announcer::frame() {
     const double wallDt = lastWallTime_ < 0.0 ? 0.0 : wallNow - lastWallTime_;
     lastSimTime_ = simNow;
     lastWallTime_ = wallNow;
+
+    if (sim_.seatbeltIsFallback() && !seatbeltSearchGaveUp_) {
+        if (wallNow < seatbeltSearchUntil_) {
+            if (wallNow >= nextSeatbeltRetry_) {
+                nextSeatbeltRetry_ = wallNow + 2.0;
+                sim_.retrySeatbelt(settings_.seatbeltDref);
+            }
+        } else {
+            seatbeltSearchGaveUp_ = true;
+            log("datarefs: за две минуты этот борт не опубликовал своего датарефа табло ремней - "
+                "читаю штатные. Если табло на нём живёт своей жизнью, пришлите журнал: строки "
+                "probe: назовут датареф, которым оно управляется");
+        }
+    }
+    probe_.poll(wallNow);
 
     engine_->frame(snapshot_, simDt, wallDt);
 

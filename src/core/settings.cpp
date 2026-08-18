@@ -142,6 +142,7 @@ const Help kHelp[] = {
     {"night_dim", "объявления про притушенный свет в салоне ночью"},
     {"landing_reaction", "реакция салона на посадку: LandingGreat или LandingTerrible"},
     {"seatbelt_dref", "свой датареф табло ремней; пусто - искать автоматически"},
+    {"dataref_probe", "писать в журнал датарефы про ремни и знаки, которые меняются; по этим строкам видно, чем управляется табло на незнакомом борте"},
     {"window_scale", "масштаб текста в окне, 1.0 - обычный; больше для VR"},
     {"panel_open", "было ли окно плагина открыто при выходе; так оно и откроется в следующий раз"},
 };
@@ -247,6 +248,8 @@ Settings parseSettings(const std::string& text, std::vector<std::string>* proble
                                "играет, пока идёт фаза, которая его завела");
         } else if (key == "seatbelt_dref") {
             s.seatbeltDref = value;
+        } else if (key == "dataref_probe") {
+            parseBool(key, value, &s.datarefProbe, problems);
         } else if (key == "window_scale") {
             parseNumber(key, value, 0.5, 3.0, &s.windowScale, problems);
         } else if (key == "panel_open") {
@@ -287,6 +290,7 @@ std::string writeSettings(const Settings& s) {
         {"night_dim", boolean(s.flight.nightDim)},
         {"landing_reaction", boolean(s.flight.landingReaction)},
         {"seatbelt_dref", s.seatbeltDref},
+        {"dataref_probe", boolean(s.datarefProbe)},
         {"window_scale", number(s.windowScale)},
         {"panel_open", boolean(s.panelOpen)},
     };

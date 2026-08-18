@@ -66,6 +66,11 @@ struct Settings {
     Config flight;
 
     std::string seatbeltDref;  // empty = find it automatically
+    // Watch every dataref whose name is about the cabin signs and write down the
+    // ones that move. On by default and deliberately so: this is what makes a
+    // report from an aeroplane nobody has tested say which dataref to read,
+    // instead of another round of "does it work now?".
+    bool datarefProbe = true;
     double windowScale = 1.0;
 
     // Was the panel open when X-Plane last shut down. v2-only: 1.x had no such

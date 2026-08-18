@@ -100,6 +100,7 @@ add_library(x_announcer2 MODULE
     src/plugin/main.cpp
     src/plugin/announcer.cpp
     src/plugin/sim_state.cpp
+    src/plugin/dataref_probe.cpp
     src/plugin/file_library.cpp
     src/plugin/audio_player.cpp
     src/plugin/report.cpp
