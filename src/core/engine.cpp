@@ -49,6 +49,22 @@ constexpr double kCruiseMarkSecond = 0.75;
 // while the gear is still coming up.
 constexpr double kCruiseMinNm = 150.0;
 
+// Fast enough on the ground that nothing but a take-off roll is happening. Well
+// above any taxi speed and well below rotation, so the call lands where the
+// lights would have put it rather than at V1.
+constexpr double kRollingKt = 40.0;
+
+// How far there is left to fly. The aeroplane's own figure first: an add-on with
+// a real FMC keeps the route inside itself and leaves X-Plane's FMS empty, so
+// the great-circle sum below has nothing to work from on precisely the aircraft
+// people fly long routes in.
+double remainingNm(const Snapshot& s) {
+    if (s.routeDistanceKnown) {
+        return s.routeDistanceNm;
+    }
+    return distanceNm(s.lat, s.lon, s.destLat, s.destLon);
+}
+
 std::string formatFeet(double v) {
     // A vertical speed of -0.4 fpm printed as "-0", which reads as a value the
     // sign of which someone is meant to act on. Anything that rounds to zero is
@@ -93,10 +109,14 @@ std::string formatIntent(const Intent& intent) {
     return line;
 }
 
-bool aircraftPowered(const Snapshot& s, std::vector<std::string>* signsOn) {
+bool aircraftPowered(const Snapshot& s, std::vector<std::string>* signsOn, bool* blind) {
     bool any = false;
-    const auto add = [&](bool on, const char* name) {
-        if (on) {
+    bool anyKnown = false;
+    const auto add = [&](Tri value, const char* name) {
+        if (known(value)) {
+            anyKnown = true;
+        }
+        if (isOn(value)) {
             any = true;
             if (signsOn != nullptr) {
                 signsOn->emplace_back(name);
@@ -107,7 +127,16 @@ bool aircraftPowered(const Snapshot& s, std::vector<std::string>* signsOn) {
     add(s.navLights, "nav");
     add(s.logo, "logo");
     add(s.taxiLight, "taxi");
-    return any;
+    if (blind != nullptr) {
+        *blind = !anyKnown;
+    }
+    // Not one of the four exists on this aeroplane. That is not "the aeroplane
+    // is dead" - it is "we have no way to ask", and the two must not produce the
+    // same answer. Answering "no power" here is what keeps a FlightFactor 777
+    // parked in PREFLIGHT for a whole flight: boarding never opens, so nothing
+    // that follows boarding is ever due, and the log stays clean while the cabin
+    // stays silent. The panel says which of the two answers this is.
+    return any || !anyKnown;
 }
 
 Engine::Engine(Config config, const SoundLibrary& library)
@@ -385,13 +414,19 @@ void Engine::stateMachine(const Snapshot& s) {
     // ------------------------------------------------------------------ ground
     if (f_.phase == Phase::Preflight) {
         const bool powered = aircraftPowered(s);
-        if (s.onGround && s.allEnginesOff() && !s.beacon && s.gsKt < 1.0) {
+        if (s.onGround && s.allEnginesOff() && !isOn(s.beacon) && s.gsKt < 1.0) {
             if (config_.autoBoarding && powered) {
                 setPhase(Phase::Boarding, "cabin ready");
                 once("BoardingStarted", "cabin ready");
             }
         }
-        if (s.onGround && s.anyEngine() && s.beacon) {
+        // Either sign of a departure, not both. This used to be an AND, and on
+        // an aeroplane with no stock beacon that AND could never be true: the
+        // engines could be running, the aeroplane taxiing, and the machine still
+        // sat in PREFLIGHT waiting for a lamp nobody drives. The two conditions
+        // mean the same thing anyway - somebody is leaving - and BOARDING has
+        // read them as OR since 1.x.
+        if (s.onGround && (s.anyEngine() || isOn(s.beacon))) {
             // loaded with the engines already running
             setPhase(Phase::Pushback, "engines already running");
         } else if (!s.onGround) {
@@ -427,10 +462,14 @@ void Engine::stateMachine(const Snapshot& s) {
             startMusic("BoardingMusic");
         }
 
-        if (s.beacon || s.anyEngine()) {
+        if (isOn(s.beacon) || s.anyEngine()) {
             stopMusic();
-            once("BoardingComplete", "beacon on");
-            setPhase(Phase::Pushback, "beacon on");
+            // Say which of the two it was. "beacon on" printed over an aeroplane
+            // that has no beacon is the kind of line that sends somebody looking
+            // for a fault in the wrong place.
+            const char* const why = isOn(s.beacon) ? "beacon on" : "engine started";
+            once("BoardingComplete", why);
+            setPhase(Phase::Pushback, why);
         }
     }
 
@@ -451,13 +490,23 @@ void Engine::stateMachine(const Snapshot& s) {
         if (config_.nightDim && s.isDark() && finished("SafetyBriefing", 10.0)) {
             once("CabinDimTakeoff", "night departure");
         }
-        if (s.onGround && s.anyEngine() && (s.strobe || s.landingLight)) {
+        // Lights are how a crew says "we are going", and they are the earliest
+        // signal there is - but they are also the signal an add-on is most
+        // likely to keep to itself. The take-off roll is not: ground speed comes
+        // from the flight model and exists on every aeroplane ever loaded. So
+        // the lights stay as the nice early path and the roll is the guarantee,
+        // otherwise "cabin crew, take your seats" is simply never said on a
+        // FlightFactor.
+        const bool linedUp = isOn(s.strobe) || isOn(s.landingLight);
+        const bool rolling = s.gsKt > kRollingKt;
+        if (s.onGround && s.anyEngine() && (linedUp || rolling)) {
             // The phase must move whether or not there is a file to play. Until
             // 2026-07-28 both this and the disembark transition were gated on
             // the announcement going on the air, so a pack missing one file
             // stalled the machine - harmless here, but fatal on the stand.
-            once("CrewSeatsTakeoff", "lined up");
-            setPhase(Phase::Takeoff, "lined up");
+            const char* const why = linedUp ? "lined up" : "rolling";
+            once("CrewSeatsTakeoff", why);
+            setPhase(Phase::Takeoff, why);
         }
         if (!s.onGround) {
             setPhase(Phase::Takeoff, "airborne");
@@ -497,9 +546,10 @@ void Engine::stateMachine(const Snapshot& s) {
     // to measure. Measuring on the ground would be wrong for a taxi of any
     // length, and re-measuring in the air would let an edited plan move the
     // finish line under an announcement already made.
-    if (!s.onGround && s.routeKnown && !f_.routeTotalNm) {
-        f_.routeTotalNm = distanceNm(s.lat, s.lon, s.destLat, s.destLon);
-        note("route: %.0f nm to the last point of the plan", *f_.routeTotalNm);
+    if (!s.onGround && s.haveRoute() && !f_.routeTotalNm) {
+        f_.routeTotalNm = remainingNm(s);
+        note("route: %.0f nm to the last point of the plan%s", *f_.routeTotalNm,
+             s.routeDistanceKnown ? " (по счислению самого борта)" : "");
     }
 
     if (f_.phase == Phase::Cruise) {
@@ -507,8 +557,8 @@ void Engine::stateMachine(const Snapshot& s) {
         // so a flight that crosses three quarters while paused still says it
         // exactly one time - and a jump straight past both says only the later
         // one, because announcing "half way" after three quarters is a lie.
-        if (s.routeKnown && f_.routeTotalNm && *f_.routeTotalNm >= kCruiseMinNm) {
-            const double remaining = distanceNm(s.lat, s.lon, s.destLat, s.destLon);
+        if (s.haveRoute() && f_.routeTotalNm && *f_.routeTotalNm >= kCruiseMinNm) {
+            const double remaining = remainingNm(s);
             const double flown = 1.0 - remaining / *f_.routeTotalNm;
             if (flown >= kCruiseMarkSecond) {
                 once("CruiseElapsed75Percent", "three quarters of the route flown");
@@ -622,11 +672,11 @@ void Engine::stateMachine(const Snapshot& s) {
     if (f_.phase == Phase::TaxiIn) {
         // Parking brake OR simply standing still: not every operator sets the
         // brake on stand, some go straight to chocks.
-        if (s.allEnginesOff() && (s.parkbrake || s.gsKt < 1.0)) {
+        if (s.allEnginesOff() && (isOn(s.parkbrake) || s.gsKt < 1.0)) {
             if (config_.doorCalls) {
                 once("DisarmDoors", "on stand");
             }
-            if ((!config_.doorCalls || finished("DisarmDoors")) && !s.beacon) {
+            if ((!config_.doorCalls || finished("DisarmDoors")) && !isOn(s.beacon)) {
                 // This is the one that mattered: the turnaround reset lives in
                 // DISEMBARK, so a pack without this file left every announcement
                 // marked as already heard and the next flight silent.
@@ -684,9 +734,16 @@ std::vector<Condition> Engine::phaseConditions(const Snapshot& s) const {
     switch (f_.phase) {
         case Phase::Preflight: {
             std::vector<std::string> on;
-            const bool powered = aircraftPowered(s, &on);
+            bool blind = false;
+            const bool powered = aircraftPowered(s, &on, &blind);
             std::string reading;
-            if (powered) {
+            if (blind) {
+                // Met, but for a reason the person has to be told: this
+                // aeroplane publishes none of the four, so the condition is
+                // waved through rather than satisfied. Without the note the
+                // panel would claim to have seen a battery that does not exist.
+                reading = "this aircraft publishes none - not waiting for it";
+            } else if (powered) {
                 for (std::size_t i = 0; i < on.size(); ++i) {
                     reading += (i ? " + " : "") + on[i];
                 }
@@ -697,7 +754,7 @@ std::vector<Condition> Engine::phaseConditions(const Snapshot& s) const {
                 // is the difference between "flip the nav lights" and "the plugin
                 // is broken".
                 reading = "no battery/nav";
-                if (s.logoDrefExists) {
+                if (known(s.logo)) {
                     reading += "/logo";
                 }
                 reading += "/taxi";
@@ -705,16 +762,18 @@ std::vector<Condition> Engine::phaseConditions(const Snapshot& s) const {
             return {
                 yes("on the ground", s.onGround),
                 yes("engines off", s.allEnginesOff()),
-                yes("beacon off", !s.beacon),
+                yes("beacon off", !isOn(s.beacon)),
                 yes("battery or any light on", powered, reading),
             };
         }
         case Phase::Boarding:
-            return {yes("beacon on or engine started", s.beacon || s.anyEngine())};
+            return {yes("beacon on or engine started", isOn(s.beacon) || s.anyEngine())};
         case Phase::Pushback:
             return {
                 yes("engine running", s.anyEngine()),
-                yes("strobes / landing lights", s.strobe || s.landingLight),
+                yes("strobes / landing lights or rolling",
+                    isOn(s.strobe) || isOn(s.landingLight) || s.gsKt > kRollingKt,
+                    formatFeet(s.gsKt) + " kt"),
             };
         case Phase::Takeoff:
             return {
@@ -749,8 +808,8 @@ std::vector<Condition> Engine::phaseConditions(const Snapshot& s) const {
         case Phase::TaxiIn:
             return {
                 yes("engines off", s.allEnginesOff()),
-                yes("brake set or stopped", s.parkbrake || s.gsKt < 1.0),
-                yes("beacon off", !s.beacon),
+                yes("brake set or stopped", isOn(s.parkbrake) || s.gsKt < 1.0),
+                yes("beacon off", !isOn(s.beacon)),
             };
         case Phase::Disembark: {
             const double left = 120.0 - (simClock_ - f_.phaseSince);

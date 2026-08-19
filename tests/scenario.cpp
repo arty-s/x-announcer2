@@ -59,6 +59,17 @@ bool splitPair(const std::string& token, std::string* key, std::string* value) {
 
 bool asBool(const std::string& v) { return v == "1" || v == "true" || v == "yes"; }
 
+// A switch in a scenario is three-valued, like the real thing. "unknown" is not
+// a curiosity: it is what every aeroplane that keeps its switches to itself
+// looks like, and a bench that could only write on/off would have no way to fly
+// the case this whole mechanism exists for.
+Tri asTri(const std::string& v) {
+    if (v == "unknown" || v == "none" || v == "?") {
+        return Tri::Unknown;
+    }
+    return asBool(v) ? Tri::On : Tri::Off;
+}
+
 class Runner {
 public:
     explicit Runner(std::string name) : name_(std::move(name)) {}
@@ -219,15 +230,26 @@ private:
         else if (key == "alt_ft") { s.altFt = std::stod(value); }
         else if (key == "vs_fpm") { s.vsFpm = std::stod(value); }
         else if (key == "g") { s.gNormal = std::stod(value); }
-        else if (key == "beacon") { s.beacon = asBool(value); }
-        else if (key == "nav") { s.navLights = asBool(value); }
-        else if (key == "strobe") { s.strobe = asBool(value); }
-        else if (key == "landing") { s.landingLight = asBool(value); }
-        else if (key == "taxi") { s.taxiLight = asBool(value); }
-        else if (key == "logo") { s.logo = asBool(value); }
-        else if (key == "logo_dref") { s.logoDrefExists = asBool(value); }
-        else if (key == "parkbrake") { s.parkbrake = asBool(value); }
-        else if (key == "battery") { s.battery = asBool(value); }
+        else if (key == "beacon") { s.beacon = asTri(value); }
+        else if (key == "nav") { s.navLights = asTri(value); }
+        else if (key == "strobe") { s.strobe = asTri(value); }
+        else if (key == "landing") { s.landingLight = asTri(value); }
+        else if (key == "taxi") { s.taxiLight = asTri(value); }
+        else if (key == "logo") { s.logo = asTri(value); }
+        // "logo_dref off" used to mean "there is no such dataref". That is
+        // exactly Tri::Unknown now, and the old spelling still works.
+        else if (key == "logo_dref") { s.logo = asBool(value) ? s.logo : Tri::Unknown; }
+        else if (key == "parkbrake") { s.parkbrake = asTri(value); }
+        else if (key == "battery") { s.battery = asTri(value); }
+        else if (key == "route_dist_nm") {
+            if (value == "none") {
+                s.routeDistanceKnown = false;
+                s.routeDistanceNm = 0.0;
+            } else {
+                s.routeDistanceKnown = true;
+                s.routeDistanceNm = std::stod(value);
+            }
+        }
         else if (key == "engines") { s.enginesRunning = std::stoi(value); }
         else if (key == "hour") { s.localHour = std::stoi(value); }
         else if (key == "lat") { s.lat = std::stod(value); }

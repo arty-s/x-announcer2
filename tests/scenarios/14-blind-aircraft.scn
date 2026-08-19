@@ -1,0 +1,87 @@
+# An aeroplane that publishes none of its switches - the FlightFactor 777 case,
+# and the reason the whole Unknown/Off distinction exists.
+#
+# Nothing here is ever switched on: no battery, no nav, no logo, no taxi, no
+# beacon, no strobes, no landing lights, no seat belt sign. Not because they are
+# off in the cockpit - because X-Plane's datarefs for them are dead on this
+# aeroplane and the plugin has no way to ask. Before the rule that a signal we
+# cannot read may not FORBID anything, this flight was silent from the stand to
+# the flare: boarding never opened, so nothing that follows boarding was ever
+# due, and the log came out as clean as a flight where everything worked.
+#
+# The whole departure has to happen here on physics alone: engines running,
+# ground speed, wheels leaving the ground.
+
+config door_calls=1 boarding_music=0 boarding_repeat=300
+library BoardingStarted BoardingWelcome BoardingComplete ArmDoors
+library SafetyBriefing:45 CrewSeatsTakeoff CallCabinSecureTakeoff AfterTakeoff
+library TopOfClimbPilot AfterLanding DisarmDoors DisembarkStarted
+
+# Every switch unknown, which is what an unbound dataref reads as. Written out
+# in full rather than left to the defaults, because that is the point of the
+# scenario and a reader has to see it.
+set hour=12 seatbelt=unknown battery=unknown nav=unknown logo=unknown
+set taxi=unknown beacon=unknown strobe=unknown landing=unknown parkbrake=unknown
+
+# ---- the cabin opens without a single light -------------------------------
+advance 20
+expect phase BOARDING
+expect played BoardingStarted
+expect played BoardingWelcome
+
+# ---- engines running is what says "we are leaving" ------------------------
+# There is no beacon to watch, so the engines have to be enough on their own.
+set engines=2
+advance 20
+expect phase PUSHBACK
+expect played BoardingComplete
+advance 200
+expect played ArmDoors
+expect played SafetyBriefing
+
+# ---- the take-off roll stands in for the strobes --------------------------
+set gs_kt=20
+advance 20
+expect phase PUSHBACK          # taxi speed is not a departure
+
+set gs_kt=90
+advance 10
+expect phase TAKEOFF
+expect played CrewSeatsTakeoff
+
+set on_ground=0 agl_ft=800 alt_ft=2000 vs_fpm=2400 gs_kt=180
+advance 30
+set agl_ft=4000 alt_ft=5000
+advance 60
+expect phase CLIMB
+expect played AfterTakeoff
+expect played CallCabinSecureTakeoff
+
+set agl_ft=29000 alt_ft=30000 vs_fpm=80
+advance 60
+set vs_fpm=0 alt_ft=35000 agl_ft=34700
+advance 60
+expect phase CRUISE
+expect played TopOfClimbPilot
+
+# ---- and the arrival, again with no beacon to go out ----------------------
+set vs_fpm=-1800 alt_ft=9000 agl_ft=8500
+advance 90
+expect phase DESCENT
+set agl_ft=2000 alt_ft=2500 vs_fpm=-700
+advance 30
+expect phase APPROACH
+
+set on_ground=1 agl_ft=0 alt_ft=100 vs_fpm=0 gs_kt=40
+advance 20
+expect phase TAXI_IN
+expect played AfterLanding
+
+# Standing still with the engines off is the whole test: the park brake is
+# unknown too, so "brake set" can never be what moves this phase, and the
+# beacon going out cannot be either.
+set gs_kt=0 engines=0
+advance 30
+expect played DisarmDoors
+expect phase DISEMBARK
+expect played DisembarkStarted

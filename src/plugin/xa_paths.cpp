@@ -57,4 +57,9 @@ std::string configPath() {
     return root.empty() ? std::string("config.ini") : root + "/config.ini";
 }
 
+std::string signalsPath() {
+    const std::string& root = pluginDir();
+    return root.empty() ? std::string("signals.ini") : root + "/signals.ini";
+}
+
 }  // namespace xa

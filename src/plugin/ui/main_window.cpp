@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "XPLMUtilities.h"
 
@@ -89,6 +90,17 @@ void switchCell(const char* title, bool* value, const char* explanation,
 // the readings that come through the condition list rather than through here.
 double whole(double v) { return v > -0.5 && v < 0.5 ? 0.0 : v; }
 
+// Three words for three states, and the third one is not "off". A panel that
+// prints "выкл" where the honest answer is "this aeroplane does not tell us"
+// sends the reader to look for a switch instead of at the Triggers tab.
+const char* triWord(core::Tri value) {
+    switch (value) {
+        case core::Tri::On:  return "вкл";
+        case core::Tri::Off: return "выкл";
+        default:             return "не знаю";
+    }
+}
+
 void copyInto(char* buffer, std::size_t size, const std::string& text) {
     const std::size_t length = std::min(text.size(), size - 1);
     std::memcpy(buffer, text.data(), length);
@@ -113,6 +125,7 @@ std::string translated(const std::string& text) {
         {"beacon on or engine started", "маяк включён или запущен двигатель"},
         {"engine running", "двигатель работает"},
         {"strobes / landing lights", "стробы или посадочные фары"},
+        {"strobes / landing lights or rolling", "стробы, фары или разбег"},
         {"airborne", "в воздухе"},
         {"3000 ft AGL", "3000 фт над землёй"},
         {"above 15 000 ft", "выше 15 000 фт"},
@@ -164,6 +177,9 @@ std::string translatedValue(const std::string& text) {
         {" s", " с"},
     };
     std::string out = text;
+    if (out == "this aircraft publishes none - not waiting for it") {
+        return "борт ничего из этого не публикует — не жду";
+    }
     if (out.rfind("no battery", 0) == 0) {
         out.replace(0, 10, "нет батареи");
     }
@@ -243,6 +259,10 @@ void MainWindow::buildUi() {
         }
         if (ImGui::BeginTabItem("Настройки")) {
             drawSettingsTab();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Триггеры")) {
+            drawTriggersTab();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Журнал")) {
@@ -339,7 +359,7 @@ void MainWindow::drawFlightTab() {
 
     section("Что видит плагин");
     ImGui::Text("на земле: %s   двигателей: %d   маяк: %s",
-                s.onGround ? "да" : "нет", s.enginesRunning, s.beacon ? "вкл" : "выкл");
+                s.onGround ? "да" : "нет", s.enginesRunning, triWord(s.beacon));
     ImGui::Text("высота: %.0f фт   над землёй: %.0f фт   верт.: %.0f фт/мин",
                 whole(s.altFt), whole(s.aglFt), whole(s.vsFpm));
     ImGui::Text("скорость: %.0f уз   местный час: %d   %s",
@@ -347,21 +367,11 @@ void MainWindow::drawFlightTab() {
     const char* belt = s.seatbelt == core::Tri::Unknown ? "борт его не публикует"
                                                         : (s.seatbelt == core::Tri::On ? "горит" : "погашено");
     ImGui::Text("табло ремней: %s", belt);
-    const char* found = announcer_->simState().seatbeltDataref();
-    if (found[0] != '\0') {
-        ImGui::TextColored(ui::kEngraved, "  %s", found);
-    }
-    // The dataref field itself now lives in config.ini, but the panel still has
-    // to say when what was typed there is not what is being read. Falling back
-    // silently looks identical to "my dataref works", and the typo then lives in
-    // the file forever.
-    const std::string& wanted = announcer_->settings().seatbeltDref;
-    if (!wanted.empty() && wanted != found) {
-        ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextColored(kAccent, "  в config.ini указан %s — на этом борту такого датарефа нет",
-                           wanted.c_str());
-        ImGui::PopTextWrapPos();
-    }
+    // What it is being read FROM, and everything else of the sort, moved to the
+    // Triggers tab: on an aeroplane that publishes none of its switches the seat
+    // belt line was the only one of nine that ever said so, and the other eight
+    // failed in silence.
+    ImGui::TextColored(ui::kEngraved, "  чем плагин это читает — на вкладке «Триггеры»");
 
     // The row 1.x had and the port dropped. It lives at the foot of the tab, in
     // one fixed place, rather than beside whatever it happens to affect: this
@@ -732,6 +742,11 @@ void MainWindow::drawReportBlock() {
 
     ImGui::BeginDisabled(sending);
     if (ImGui::Button(sending ? "Отправляю…" : "Отправить журнал")) {
+        // The trigger table goes in first, so that it is inside the log the
+        // report carries. Without it a report from an untested aeroplane says
+        // what did not happen but never what the plugin was able to see, and
+        // that is the half the answer is in.
+        announcer_->logTriggers("снимок к отчёту");
         report::Input input;
         input.meta.plugin = kPluginVersion;
         int xplane = 0;
@@ -803,6 +818,105 @@ void MainWindow::drawReportBlock() {
     // the file holds exactly what was sent, or would have been.
     small("Копия последнего отчёта — в файле report_last.txt рядом с плагином.");
     ImGui::Separator();
+}
+
+// Every reading the state machine acts on, one row each: what it is bound to,
+// where that came from, what it says now.
+//
+// The tab exists because of the way this plugin fails. A missing trigger does
+// not throw and does not print: the phase simply never advances, nothing is
+// due, and the log is as clean as on a flight where everything worked. The
+// only difference is a cabin that stays quiet - and from the outside that looks
+// exactly like a broken plugin, a missing sound pack or a wrong setting. One
+// screenshot of this tab tells the three apart.
+void MainWindow::drawTriggersTab() {
+    const std::vector<SignalReport> rows = announcer_->simState().signalReports();
+
+    section("Что этот борт даёт читать");
+    ImGui::PushTextWrapPos(0.0f);
+    small("Плагин не управляет самолётом — он на него смотрит. Здесь видно, чем именно: "
+          "«датареф борта» значит, что самолёт назвал переключатель сам; «штатный» — что своего "
+          "у него нет и читается общий датареф X-Plane, который на серьёзных аддонах часто никто "
+          "не пишет. Строка «не знаю» — не поломка: это честный ответ, и условия, которые на неё "
+          "опираются, плагин обходит другими путями, а не ждёт вечно.");
+    ImGui::PopTextWrapPos();
+    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+
+    if (ImGui::BeginTable("triggers", 4,
+                          ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH |
+                              ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("сигнал", ImGuiTableColumnFlags_WidthFixed, 190.0f);
+        ImGui::TableSetupColumn("читается", ImGuiTableColumnFlags_WidthFixed, 96.0f);
+        ImGui::TableSetupColumn("откуда", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("двигался", ImGuiTableColumnFlags_WidthFixed, 96.0f);
+        ImGui::TableHeadersRow();
+
+        for (const SignalReport& row : rows) {
+            ImGui::TableNextRow();
+
+            ImGui::TableSetColumnIndex(0);
+            ImGui::TextUnformatted(row.title);
+
+            ImGui::TableSetColumnIndex(1);
+            if (!row.bound) {
+                ImGui::TextColored(kAccent, "нет датарефа");
+            } else if (row.reading == core::Tri::Unknown) {
+                ImGui::TextColored(kAccent, "не знаю");
+            } else if (row.reading == core::Tri::On) {
+                ImGui::TextColored(kMet, "вкл");
+            } else {
+                ImGui::TextDisabled("выкл");
+            }
+
+            ImGui::TableSetColumnIndex(2);
+            if (row.dataref.empty()) {
+                ImGui::TextDisabled("—");
+            } else {
+                ImGui::PushTextWrapPos(0.0f);
+                ImGui::TextUnformatted(row.dataref.c_str());
+                ImGui::PopTextWrapPos();
+            }
+            // Where the reading came from and, when it needs saying, why it is
+            // what it is. A dim second line rather than another column: this is
+            // read once per aeroplane, the four columns above are read at a
+            // glance.
+            std::string origin = row.bound ? (row.fromAircraft ? "датареф борта" : "штатный X-Plane")
+                                           : "не найден";
+            if (!row.note.empty()) {
+                origin += " — " + row.note;
+            }
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextColored(ui::kEngraved, "%s", origin.c_str());
+            ImGui::PopTextWrapPos();
+
+            ImGui::TableSetColumnIndex(3);
+            if (!row.bound) {
+                ImGui::TextDisabled("—");
+            } else if (row.everMoved) {
+                ImGui::TextColored(kMet, "да");
+            } else {
+                ImGui::TextDisabled("нет");
+            }
+        }
+        ImGui::EndTable();
+    }
+
+    section("Если строка врёт");
+    ImGui::PushTextWrapPos(0.0f);
+    small("Щёлкните тумблером в кабине и посмотрите журнал: при включённом dataref_probe "
+          "плагин перебирает все датарефы симулятора и пишет строкой те, что шевельнулись. "
+          "Найденное имя можно вписать в signals.ini рядом с плагином — там же лежит пример — "
+          "и прислать нам, чтобы борт знали все.");
+    ImGui::PopTextWrapPos();
+    if (ImGui::Button("Записать таблицу в журнал")) {
+        announcer_->logTriggers("снимок по кнопке");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Перечитать signals.ini")) {
+        announcer_->loadSignalOverrides();
+        announcer_->simState().bind(announcer_->settings().seatbeltDref);
+        announcer_->logTriggers("после перечитывания signals.ini");
+    }
 }
 
 void MainWindow::drawLogTab() {

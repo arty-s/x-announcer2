@@ -8,9 +8,19 @@
 
 library BoardingStarted BoardingWelcome
 
-set hour=9 seatbelt=0
+# The power is switched on for a moment and off again, rather than simply left
+# at zero. Left at zero it reads as Unknown - "this aeroplane publishes no such
+# switch" - and then the cabin opens without waiting for power, which is the
+# right answer for a FlightFactor and the wrong test for a teleport. Only a
+# dataref that has been seen to move counts as a switch somebody drives, and
+# the 1.x side of the differential reads real datarefs, so the movement has to
+# happen in the scenario. See 14-blind-aircraft.scn for the other half of the
+# rule. None of this is visible in the air: the aeroplane starts in the cruise.
+set hour=9 seatbelt=0 battery=1 nav=1 taxi=1
 set on_ground=0 agl_ft=34000 alt_ft=35000 vs_fpm=0 gs_kt=450 engines=2
-advance 30
+advance 10
+set battery=0 nav=0 taxi=0 logo=0
+advance 20
 expect phase CRUISE
 
 # Teleported to a stand: on the ground, engines off, stationary.

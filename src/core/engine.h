@@ -178,6 +178,12 @@ private:
 // add-ons run their own electrical system and many never drive X-Plane's generic
 // battery dataref. On a ToLiss the battery reads off with the aircraft fully
 // powered and the nav lights are what actually move.
-bool aircraftPowered(const Snapshot& s, std::vector<std::string>* signsOn = nullptr);
+//
+// `blind` comes back true when the aeroplane publishes NONE of the four. In that
+// case the answer is yes, because a question we cannot ask must not be allowed
+// to hold the flight up - and the caller is told, so the panel can say which
+// kind of yes this is.
+bool aircraftPowered(const Snapshot& s, std::vector<std::string>* signsOn = nullptr,
+                     bool* blind = nullptr);
 
 }  // namespace xa::core

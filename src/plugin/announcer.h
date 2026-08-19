@@ -81,10 +81,18 @@ public:
     // pinned by hand when airline_mode is manual.
     void applyPackChoice();
 
+    // Writes the whole trigger table into the log. Called when the aeroplane
+    // has settled and again when a report is sent, so that a report from an
+    // aeroplane nobody has tested says which of its triggers are alive.
+    void logTriggers(const char* why);
+
+    // The user's own signals.ini, re-read from disk.
+    void loadSignalOverrides();
+
 private:
     void execute(const core::Intent& intent);
-    // Starts the two-minute hunt for the aeroplane's own seat belt dataref.
-    void beginSeatbeltSearch();
+    // Starts the two-minute hunt for the aeroplane's own datarefs.
+    void beginSignalSearch();
 
     core::Settings settings_;
     SimState sim_;
@@ -107,12 +115,13 @@ private:
 
     std::string appliedSeatbelt_;  // rebinding datarefs is only worth it on change
     // An aeroplane's own plugin registers its datarefs when it pleases, and the
-    // load order is not guaranteed, so the search for the seat belt sign keeps
-    // going for a while after the aeroplane arrives instead of being decided in
-    // the one instant X-Plane sent the message.
-    double seatbeltSearchUntil_ = -1.0;
-    double nextSeatbeltRetry_ = 0.0;
-    bool seatbeltSearchGaveUp_ = false;
+    // load order is not guaranteed, so the search for its switches keeps going
+    // for a while after the aeroplane arrives instead of being decided in the
+    // one instant X-Plane sent the message.
+    double signalSearchUntil_ = -1.0;
+    double nextSignalRetry_ = 0.0;
+    bool signalSearchDone_ = false;
+    core::SignalOverrides signalOverrides_;
     bool settingsDirty_ = false;
     double settingsDirtySince_ = 0.0;
 };

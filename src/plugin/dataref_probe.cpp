@@ -13,35 +13,69 @@
 namespace xa {
 namespace {
 
-// What a cabin sign is called, in the words the add-on authors actually use:
-// seatbelt_sign_pos, fasten_seat_belts, seatbeltLight, seatbelts_lts,
-// sign_belts, FastenBeltsSwitch, no_smoking_pos. "seat" alone is not here on
-// purpose - it matches every seat position and animation in the cockpit.
-const char* const kKeywords[] = {"belt", "fasten", "smok"};
+// The probe watches by TOPIC, not by one keyword list, and each topic has a
+// budget of its own. One list would have let a talkative aeroplane fill the
+// whole quota with landing-gear animations and leave nothing for the cabin
+// signs - and the topic that overflows is named in the log rather than silently
+// truncated.
+//
+// The words are the ones add-on authors actually use: seatbelt_sign_pos,
+// fasten_seat_belts, seatbeltLight, sign_belts, beaconLightSwitch, strobe_lts,
+// position_light_pos, parkbrk, dist_dest. "seat" alone is not here on purpose -
+// it matches every seat position in the cockpit; neither is bare "light", which
+// matches half the panel; nor bare "landing", which is mostly the gear.
+struct Topic {
+    const char* id;
+    const char* const* words;
+    std::size_t wordCount;
+    std::size_t budget;
+};
+
+const char* const kSignWords[] = {"belt", "fasten", "smok"};
+const char* const kLightWords[] = {"beacon", "strobe", "taxi_light", "taxilight", "logo",
+                                   "position_light", "nav_light", "navlight", "navlights",
+                                   "land_light", "landing_light", "landinglight", "lights_on"};
+const char* const kPowerWords[] = {"battery", "batt_on", "gpu", "avionics_on"};
+const char* const kBrakeWords[] = {"parkbrake", "park_brake", "parkbrk", "parking_brake"};
+const char* const kRouteWords[] = {"dist_dest", "dist_to_dest", "distance_dest", "todest"};
+
+const Topic kTopics[] = {
+    {"signs", kSignWords, sizeof(kSignWords) / sizeof(kSignWords[0]), 48},
+    {"lights", kLightWords, sizeof(kLightWords) / sizeof(kLightWords[0]), 64},
+    {"power", kPowerWords, sizeof(kPowerWords) / sizeof(kPowerWords[0]), 24},
+    {"brake", kBrakeWords, sizeof(kBrakeWords) / sizeof(kBrakeWords[0]), 12},
+    {"route", kRouteWords, sizeof(kRouteWords) / sizeof(kRouteWords[0]), 8},
+};
+
+constexpr std::size_t kTopicCount = sizeof(kTopics) / sizeof(kTopics[0]);
 
 // Enough to hold every spelling on any one aeroplane, small enough that reading
 // them all several times a second costs nothing. Overflow is reported, never
 // silently dropped.
-constexpr std::size_t kMaxWatched = 64;
+constexpr std::size_t kMaxWatched = 160;
 // A whole session's budget. A dataref that is animated rather than switched can
 // change every frame, and a log that scrolls past the interesting line is as
 // useless as no log at all.
 constexpr int kMaxLines = 200;
 constexpr int kMaxChangesPerRef = 12;
 
-bool nameLooksLikeASign(const char* name) {
+// Which topic this name belongs to, or -1 for none. First match wins; the
+// topics do not overlap in practice.
+int topicOf(const char* name) {
     if (name == nullptr) {
-        return false;
+        return -1;
     }
     std::string lower(name);
     std::transform(lower.begin(), lower.end(), lower.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    for (const char* keyword : kKeywords) {
-        if (lower.find(keyword) != std::string::npos) {
-            return true;
+    for (std::size_t i = 0; i < kTopicCount; ++i) {
+        for (std::size_t w = 0; w < kTopics[i].wordCount; ++w) {
+            if (lower.find(kTopics[i].words[w]) != std::string::npos) {
+                return static_cast<int>(i);
+            }
         }
     }
-    return false;
+    return -1;
 }
 
 // Scalars only. An array dataref would need a size and an index to mean
@@ -139,6 +173,12 @@ void DatarefProbe::build(double wallSeconds) {
 
     int added = 0;
     int skipped = 0;
+    std::size_t perTopic[kTopicCount] = {0};
+    for (const Watched& w : watched_) {
+        if (w.topic >= 0 && static_cast<std::size_t>(w.topic) < kTopicCount) {
+            ++perTopic[w.topic];
+        }
+    }
     for (XPLMDataRef ref : all) {
         if (ref == nullptr) {
             continue;
@@ -147,7 +187,8 @@ void DatarefProbe::build(double wallSeconds) {
         std::memset(&info, 0, sizeof(info));
         info.structSize = sizeof(info);
         XPLMGetDataRefInfo(ref, &info);
-        if (!nameLooksLikeASign(info.name) || !typeIsReadable(info.type)) {
+        const int topic = topicOf(info.name);
+        if (topic < 0 || !typeIsReadable(info.type)) {
             continue;
         }
         const bool known = std::any_of(watched_.begin(), watched_.end(), [&](const Watched& w) {
@@ -156,7 +197,8 @@ void DatarefProbe::build(double wallSeconds) {
         if (known) {
             continue;
         }
-        if (watched_.size() >= kMaxWatched) {
+        if (watched_.size() >= kMaxWatched ||
+            perTopic[topic] >= kTopics[topic].budget) {
             ++skipped;
             continue;
         }
@@ -164,8 +206,10 @@ void DatarefProbe::build(double wallSeconds) {
         w.ref = ref;
         w.name = info.name != nullptr ? info.name : "";
         w.type = static_cast<int>(info.type);
+        w.topic = topic;
         w.value = readValue(w);
         watched_.push_back(w);
+        ++perTopic[topic];
         ++added;
         // The starting values are printed too: half the reports arrive with the
         // switch already where the user left it, and then the only evidence is
@@ -176,8 +220,18 @@ void DatarefProbe::build(double wallSeconds) {
         }
     }
     if (added > 0 || skipped > 0) {
-        log("probe: под наблюдением %d датарефов про ремни и знаки%s", static_cast<int>(watched_.size()),
-            skipped > 0 ? " (список переполнен, часть не взята)" : "");
+        std::string byTopic;
+        for (std::size_t i = 0; i < kTopicCount; ++i) {
+            if (perTopic[i] == 0) {
+                continue;
+            }
+            if (!byTopic.empty()) {
+                byTopic += ", ";
+            }
+            byTopic += std::string(kTopics[i].id) + " " + std::to_string(perTopic[i]);
+        }
+        log("probe: под наблюдением %d датарефов (%s)%s", static_cast<int>(watched_.size()),
+            byTopic.c_str(), skipped > 0 ? "; список переполнен, часть не взята" : "");
     }
 }
 

@@ -59,6 +59,7 @@ add_library(xa_core STATIC
     src/core/settings.cpp
     src/core/pack_layout.cpp
     src/core/report_body.cpp
+    src/core/signal_map.cpp
 )
 target_include_directories(xa_core PUBLIC src)
 if(MSVC)
@@ -74,6 +75,7 @@ add_executable(xa_test
     tests/audio_test.cpp
     tests/airline_test.cpp
     tests/settings_test.cpp
+    tests/signal_map_test.cpp
     tests/pack_layout_test.cpp
     tests/report_body_test.cpp
 )

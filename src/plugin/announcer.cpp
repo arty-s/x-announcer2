@@ -121,20 +121,57 @@ void Announcer::applySettings() {
     if (settings_.seatbeltDref != appliedSeatbelt_) {
         appliedSeatbelt_ = settings_.seatbeltDref;
         sim_.bind(settings_.seatbeltDref);
-        beginSeatbeltSearch();
+        beginSignalSearch();
     }
     probe_.setEnabled(settings_.datarefProbe);
 }
 
-// The seat belt sign is looked for over the next couple of minutes rather than
-// once. Plugin load order is not guaranteed - Laminar's own advice is to resolve
-// other people's datarefs in the flight loop, not when a message arrives - and
-// an aeroplane whose datarefs turn up a second late would otherwise be read
-// through a stock dataref its systems never write, for the whole flight.
-void Announcer::beginSeatbeltSearch() {
-    seatbeltSearchUntil_ = wallSeconds() + 120.0;
-    nextSeatbeltRetry_ = 0.0;
-    seatbeltSearchGaveUp_ = false;
+// The aeroplane's own switches are looked for over the next couple of minutes
+// rather than once. Plugin load order is not guaranteed - Laminar's own advice
+// is to resolve other people's datarefs in the flight loop, not when a message
+// arrives - and an aeroplane whose datarefs turn up a second late would
+// otherwise be read through stock datarefs its systems never write, for the
+// whole flight.
+void Announcer::beginSignalSearch() {
+    signalSearchUntil_ = wallSeconds() + 120.0;
+    nextSignalRetry_ = 0.0;
+    signalSearchDone_ = false;
+}
+
+void Announcer::logTriggers(const char* why) {
+    log("triggers: %s (борт %s)", why, aircraftIcao_.empty() ? "?" : aircraftIcao_.c_str());
+    for (const std::string& line : sim_.signalLogLines()) {
+        log("%s", line.c_str());
+    }
+}
+
+// signals.ini is optional and usually absent. When it is missing the sample is
+// written out once, so that the format is discoverable from the plugin folder
+// rather than only from the README - and so that a person told "add a line to
+// signals.ini" finds a file to add it to.
+void Announcer::loadSignalOverrides() {
+    const std::string path = signalsPath();
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        std::ofstream sample(path, std::ios::binary | std::ios::trunc);
+        if (sample) {
+            sample << core::sampleSignalOverrides();
+        }
+        signalOverrides_ = core::SignalOverrides();
+        sim_.setOverrides(signalOverrides_);
+        return;
+    }
+    std::ostringstream text;
+    text << file.rdbuf();
+    std::vector<std::string> problems;
+    signalOverrides_ = core::parseSignalOverrides(text.str(), &problems);
+    for (const std::string& problem : problems) {
+        log("signals.ini: %s", problem.c_str());
+    }
+    if (signalOverrides_.count() > 0) {
+        log("signals.ini: %d своих датарефов", signalOverrides_.count());
+    }
+    sim_.setOverrides(signalOverrides_);
 }
 
 void Announcer::settingsChanged(bool rescanLibraryToo) {
@@ -171,11 +208,15 @@ void Announcer::rescanLibrary() {
 
 void Announcer::start() {
     loadSettings();
+    loadSignalOverrides();
+    // Which aeroplane, before the datarefs: signals.ini is keyed on it.
+    aircraftIcao_ = sim_.readIdentity().icao;
+    sim_.setAircraft(aircraftIcao_);
     // The first bind happens here rather than in applySettings(), which only
     // rebinds on change and would otherwise skip it when no override is set.
     appliedSeatbelt_ = settings_.seatbeltDref;
     sim_.bind(appliedSeatbelt_);
-    beginSeatbeltSearch();
+    beginSignalSearch();
     probe_.reset();
     applySettings();
     rescanLibrary();
@@ -191,12 +232,14 @@ void Announcer::start() {
 
 void Announcer::onAircraftLoaded() {
     // Add-on datarefs come and go with the aircraft, so the bindings are redone
-    // rather than trusted. The seat belt sign in particular is aircraft-specific.
+    // rather than trusted. Every one of them is aircraft-specific, not just the
+    // seat belt sign.
+    aircraftIcao_ = sim_.readIdentity().icao;
+    sim_.setAircraft(aircraftIcao_);
     sim_.bind(settings_.seatbeltDref);
-    beginSeatbeltSearch();
+    beginSignalSearch();
     probe_.reset();
     lastLivery_.clear();  // force a fresh verdict for the new aeroplane
-    aircraftIcao_ = sim_.readIdentity().icao;
     // And the flight starts over. Nothing in the datarefs says the aeroplane was
     // replaced - it is parked before and after - so this message is the only
     // signal there is.
@@ -320,17 +363,24 @@ void Announcer::frame() {
     lastSimTime_ = simNow;
     lastWallTime_ = wallNow;
 
-    if (sim_.seatbeltIsFallback() && !seatbeltSearchGaveUp_) {
-        if (wallNow < seatbeltSearchUntil_) {
-            if (wallNow >= nextSeatbeltRetry_) {
-                nextSeatbeltRetry_ = wallNow + 2.0;
-                sim_.retrySeatbelt(settings_.seatbeltDref);
+    if (!signalSearchDone_) {
+        if (wallNow < signalSearchUntil_ && sim_.anySignalPending()) {
+            if (wallNow >= nextSignalRetry_) {
+                nextSignalRetry_ = wallNow + 2.0;
+                sim_.retryUnbound(settings_.seatbeltDref);
             }
         } else {
-            seatbeltSearchGaveUp_ = true;
-            log("datarefs: за две минуты этот борт не опубликовал своего датарефа табло ремней - "
-                "читаю штатные. Если табло на нём живёт своей жизнью, пришлите журнал: строки "
-                "probe: назовут датареф, которым оно управляется");
+            signalSearchDone_ = true;
+            // The whole table, once, when the aeroplane has stopped arriving.
+            // This is the line a report is worth sending for: it says which
+            // triggers this aeroplane actually gives us and which ones we are
+            // deaf to, without another round of questions.
+            logTriggers("что этот борт даёт нам читать");
+            if (sim_.seatbeltIsFallback()) {
+                log("datarefs: своего датарефа табло ремней этот борт не дал - читаю штатные. "
+                    "Если табло на нём живёт своей жизнью, пришлите журнал: строки probe: "
+                    "назовут датареф, которым оно управляется");
+            }
         }
     }
     probe_.poll(wallNow);

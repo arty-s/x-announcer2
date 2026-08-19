@@ -23,6 +23,7 @@
 #include "report_body_test.h"
 #include "scenario.h"
 #include "settings_test.h"
+#include "signal_map_test.h"
 
 namespace fs = std::filesystem;
 
@@ -155,6 +156,9 @@ int main(int argc, char** argv) {
     std::cout << "\n";
 
     xa::test::runSettingsChecks(&checks, &failed);
+    std::cout << "\n";
+
+    xa::test::runSignalMapChecks(&checks, &failed);
     std::cout << "\n";
 
     xa::test::runPackLayoutChecks(&checks, &failed);

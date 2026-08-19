@@ -26,6 +26,10 @@ private:
     void drawLibraryTab();
     void drawSettingsTab();
     void drawLogTab();
+    // Every reading the state machine acts on, where it comes from, and whether
+    // it has ever moved. The tab exists because "the cabin is silent" and "this
+    // aeroplane publishes no beacon" look identical from the outside.
+    void drawTriggersTab();
     // The "send the log" block at the head of the Log tab.
     void drawReportBlock();
 

@@ -23,4 +23,8 @@ std::string assetPath(const std::string& relative);
 // file is the user's.
 std::string configPath();
 
+// The optional per-aircraft dataref file: pluginDir() + "/signals.ini". The
+// user's, like config.ini, and for the same reason kept out of assets/.
+std::string signalsPath();
+
 }  // namespace xa

@@ -5,8 +5,12 @@
 // does nothing" and there is no way to tell a wrong dataref from a switch that
 // was flipped on the ground - the log is silent either way.
 //
-// So the plugin asks X-Plane for every dataref whose NAME could be about the
-// cabin signs, watches that shortlist, and writes down the ones that move. The
+// So the plugin asks X-Plane for every dataref whose NAME could be about a
+// trigger it needs - the cabin signs, the exterior lights, the battery, the
+// park brake, the distance to destination - watches that shortlist, and writes
+// down the ones that move. Signs alone were not enough: on an aeroplane that
+// keeps its beacon to itself the whole departure goes quiet, and that shows up
+// in a log exactly the same way as a wrong seat belt dataref did. The
 // user flips the switch, sends the log, and the line
 //
 //     probe: laminar/B738/toggle_switch/seatbelt_sign_pos 0 -> 2
@@ -39,6 +43,7 @@ private:
         void* ref = nullptr;
         std::string name;
         int type = 0;
+        int topic = -1;
         double value = 0.0;
         int changes = 0;
         bool dropped = false;

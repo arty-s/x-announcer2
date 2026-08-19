@@ -8,10 +8,26 @@
 
 namespace xa::core {
 
-// The seat belt sign is genuinely three-valued: an aircraft may not publish one
-// at all. Collapsing "unknown" into "off" would make the sign appear to switch
-// on the first time it is read, and fire a PA nobody asked for.
+// Every cockpit switch the plugin reads is three-valued, and the third value is
+// the one that matters: an aeroplane may simply not publish it.
+//
+// The seat belt sign taught this the expensive way - collapsing "unknown" into
+// "off" made the sign appear to switch on the first time it was read and fired a
+// PA nobody asked for. The same collapse on the exterior lights is worse and
+// quieter: a study-level aeroplane that runs its own electrics publishes no
+// stock beacon, X-Plane's dataref reads zero for the whole flight, and a
+// condition written as "beacon on" can then never be met. The phase stops
+// moving, no announcement is missing from the log because none was ever due, and
+// the report says only "it is silent".
+//
+// So the rule, everywhere below: a signal we cannot read must not be allowed to
+// FORBID anything. Unknown may never stand in for "off" in a condition that
+// gates a phase.
 enum class Tri { Unknown, Off, On };
+
+inline bool isOn(Tri t) { return t == Tri::On; }
+inline bool isOff(Tri t) { return t == Tri::Off; }
+inline bool known(Tri t) { return t != Tri::Unknown; }
 
 struct Snapshot {
     bool paused = false;
@@ -24,16 +40,19 @@ struct Snapshot {
     double vsFpm = 0.0;
     double gNormal = 1.0;
 
-    bool beacon = false;
-    bool navLights = false;
-    bool strobe = false;
-    bool landingLight = false;
-    bool taxiLight = false;
-    bool logo = false;
-    bool logoDrefExists = false;  // only add-ons publish one; see powerSigns()
+    // The exterior lights and the cabin signs, as the aeroplane publishes them -
+    // or Unknown where it publishes nothing at all. Defaults are Unknown rather
+    // than Off precisely because "nothing bound yet" is the state the plugin
+    // starts in and must survive.
+    Tri beacon = Tri::Unknown;
+    Tri navLights = Tri::Unknown;
+    Tri strobe = Tri::Unknown;
+    Tri landingLight = Tri::Unknown;
+    Tri taxiLight = Tri::Unknown;
+    Tri logo = Tri::Unknown;
 
-    bool parkbrake = false;
-    bool battery = false;
+    Tri parkbrake = Tri::Unknown;
+    Tri battery = Tri::Unknown;
     Tri seatbelt = Tri::Unknown;
 
     int enginesRunning = 0;
@@ -50,10 +69,21 @@ struct Snapshot {
     double destLat = 0.0;
     double destLon = 0.0;
 
+    // How far the aeroplane's OWN flight computer says it is from the
+    // destination. The stock FMS is empty on every add-on with a real FMC - a
+    // Zibo's route lives in the Zibo - so where the aeroplane publishes the
+    // remaining distance itself, that is the honest number and it wins over the
+    // great-circle sum below.
+    bool routeDistanceKnown = false;
+    double routeDistanceNm = 0.0;
+
     bool anyEngine() const { return enginesRunning > 0; }
     bool allEnginesOff() const { return enginesRunning == 0; }
     bool isDark() const { return localHour >= 21 || localHour < 6; }
     bool frozen() const { return paused || replay; }
+
+    // "There is a destination to measure against", whichever way we get it.
+    bool haveRoute() const { return routeDistanceKnown || routeKnown; }
 };
 
 }  // namespace xa::core
