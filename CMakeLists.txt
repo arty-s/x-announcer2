@@ -60,6 +60,7 @@ add_library(xa_core STATIC
     src/core/pack_layout.cpp
     src/core/report_body.cpp
     src/core/signal_map.cpp
+    src/core/version.cpp
 )
 target_include_directories(xa_core PUBLIC src)
 if(MSVC)
@@ -78,6 +79,7 @@ add_executable(xa_test
     tests/signal_map_test.cpp
     tests/pack_layout_test.cpp
     tests/report_body_test.cpp
+    tests/version_test.cpp
 )
 target_link_libraries(xa_test PRIVATE xa_core xa_audio)
 target_include_directories(xa_test PRIVATE tests)
@@ -106,6 +108,7 @@ add_library(x_announcer2 MODULE
     src/plugin/file_library.cpp
     src/plugin/audio_player.cpp
     src/plugin/report.cpp
+    src/plugin/update_check.cpp
     src/plugin/xa_log.cpp
     src/plugin/xa_paths.cpp
     src/plugin/imgui_xp/xp_imgui_window.cpp

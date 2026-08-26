@@ -209,6 +209,19 @@ void runSettingsChecks(int* checks, int* failed) {
         check(problems.size() == 2, "both bad numbers are reported");
     }
 
+    // The update check. The only thing worth pinning is that it defaults to on
+    // and that "off" really reaches the flag - a switch that silently stays on
+    // is worse than no switch, because it is a promise not to touch the network
+    // that the plugin then breaks.
+    {
+        check(core::Settings().updateCheck, "the update check is on unless asked otherwise");
+        std::vector<std::string> problems;
+        const core::Settings off = core::parseSettings("update_check = false\n", &problems);
+        check(!off.updateCheck && problems.empty(), "and false switches it off without complaint");
+        check(core::parseSettings(core::writeSettings(off)).updateCheck == false,
+              "and survives the rewrite the panel does on every edit");
+    }
+
     // The contact. It is the only key here whose value is a free-form thing a
     // person typed, so the two things to prove are that it is not parsed and
     // that it survives a rewrite - the file is rewritten on every change, and a

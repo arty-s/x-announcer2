@@ -17,6 +17,7 @@
 #include "plugin/announcer.h"
 #include "plugin/report.h"
 #include "plugin/ui/theme.h"
+#include "plugin/update_check.h"
 #include "plugin/version.h"
 #include "plugin/xa_log.h"
 #include "plugin/xa_paths.h"
@@ -248,6 +249,8 @@ void MainWindow::buildUi() {
     ui::drawAurora(ImGui::GetWindowDrawList(), ImGui::GetWindowPos(),
                    ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x,
                           ImGui::GetWindowPos().y + ImGui::GetWindowSize().y));
+
+    drawVersionLine();
 
     if (ImGui::BeginTabBar("tabs")) {
         if (ImGui::BeginTabItem("Рейс")) {
@@ -725,6 +728,47 @@ void MainWindow::drawSettingsTab() {
         ImGui::EndDisabled();
     }
 
+}
+
+// Which build this is, and whether a newer one exists.
+//
+// Above the tab bar rather than on a tab, because "what am I running" is a
+// question asked from wherever you happen to be standing, and the answer that
+// matters - that the thing you are fighting was fixed a week ago - has to find
+// the person rather than wait to be looked up.
+//
+// The check is fired from here, on the first frame the panel is ever drawn:
+// this function runs only when somebody has opened the window, which is the
+// consent the request needs. It fires once per session; update::start() refuses
+// the rest.
+void MainWindow::drawVersionLine() {
+    if (announcer_->settings().updateCheck) {
+        update::start(kPluginVersion);
+    }
+    const update::Status check = update::status();
+
+    ImGui::PushStyleColor(ImGuiCol_Text, kInkMute);
+    if (check.state == update::State::Checking) {
+        ImGui::Text("версия %s · спрашиваю канал обновлений…", kPluginVersion);
+    } else {
+        ImGui::Text("версия %s", kPluginVersion);
+    }
+    ImGui::PopStyleColor();
+
+    // Only Outdated says anything more. Failed and Unknown stay quiet on purpose:
+    // an answer nobody could read says nothing about which build is newer, and a
+    // panel that guessed would nag every person behind a captive portal. The
+    // reason is in the log for whoever goes looking.
+    if (check.state == update::State::Outdated) {
+        ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::Text("Вышла %s — обновитесь через SkunkCrafts Updater или скачайте с "
+                    "xvatrus.ru/xannouncer",
+                    check.latest.c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::PopStyleColor();
+    }
+    ImGui::Separator();
 }
 
 // The send block sits at the TOP of the tab, above the log itself. In 1.x the

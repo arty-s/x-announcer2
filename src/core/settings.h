@@ -79,6 +79,13 @@ struct Settings {
     // "did the plugin start at all", rude once the answer was always yes.
     bool panelOpen = false;
 
+    // Ask the update channel, once per session when the panel is first
+    // opened, whether a newer build exists. On by default: the failure this
+    // exists for is a person flying a build whose bug was fixed days ago and
+    // having nothing on screen say so. Off means the plugin makes no network
+    // request of its own accord at all, which is somebody's reasonable answer.
+    bool updateCheck = true;
+
     // How to reach the person who sends a report, in their own words: a Discord
     // handle, an e-mail, a forum nickname. Optional, and stored rather than
     // asked every time - a field that has to be retyped in each session is a

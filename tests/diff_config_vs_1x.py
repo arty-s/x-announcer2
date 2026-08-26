@@ -60,6 +60,11 @@ V2_ONLY = {
     "default_fallback": "1.x always fills a gap in the airline's pack from "
                         "Default and offers no way to say no. v2 defaults to "
                         "the same behaviour, so nothing changes unless asked",
+    "update_check": "1.x has no update channel to ask - it is a FlyWithLua "
+                    "script a person copies in by hand, and there is nothing "
+                    "for it to compare itself against. v2 publishes a version "
+                    "line at a fixed URL, so it can say when the build in the "
+                    "simulator is older than the one on the site",
     "contact": "1.x has no way to send a report at all, so it has nobody to "
                "be reachable by. In v2 the drop box stores an IP and nothing "
                "else, and the first two reports came from a stranger the "

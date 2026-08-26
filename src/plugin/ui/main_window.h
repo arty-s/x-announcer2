@@ -32,6 +32,9 @@ private:
     void drawTriggersTab();
     // The "send the log" block at the head of the Log tab.
     void drawReportBlock();
+    // The installed version above the tab bar, and the one line that appears
+    // when the update channel has something newer.
+    void drawVersionLine();
 
     // ImGui edits text in place, so the one free-text setting left in the panel
     // needs a buffer of its own. It is refilled from the settings whenever the

@@ -24,6 +24,7 @@
 #include "scenario.h"
 #include "settings_test.h"
 #include "signal_map_test.h"
+#include "version_test.h"
 
 namespace fs = std::filesystem;
 
@@ -165,6 +166,9 @@ int main(int argc, char** argv) {
     std::cout << "\n";
 
     xa::test::runReportBodyChecks(&checks, &failed);
+    std::cout << "\n";
+
+    xa::test::runVersionChecks(&checks, &failed);
     std::cout << "\n";
 
     for (const fs::path& file : files) {
