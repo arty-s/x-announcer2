@@ -209,6 +209,22 @@ void runSettingsChecks(int* checks, int* failed) {
         check(problems.size() == 2, "both bad numbers are reported");
     }
 
+    // The contact. It is the only key here whose value is a free-form thing a
+    // person typed, so the two things to prove are that it is not parsed and
+    // that it survives a rewrite - the file is rewritten on every change, and a
+    // contact quietly reformatted once is a contact nobody can answer.
+    {
+        std::vector<std::string> problems;
+        const core::Settings s =
+            core::parseSettings("contact = @vasya#1234, mail@example.com\n", &problems);
+        check(s.contact == "@vasya#1234, mail@example.com",
+              "the contact is taken as written, punctuation and all");
+        check(problems.empty(), "and raises nothing - there is no wrong way to write one");
+        check(s.unknown.count("contact") == 0, "it is a known key, not carried as an unknown");
+        const core::Settings again = core::parseSettings(core::writeSettings(s));
+        check(again.contact == s.contact, "and it survives the rewrite the panel does on every edit");
+    }
+
     // One broken line must not cost the user the rest of the file - that is the
     // difference between "one setting is wrong" and "none of my settings work".
     {

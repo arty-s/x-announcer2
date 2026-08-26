@@ -1,6 +1,7 @@
 #include "plugin/ui/main_window.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -124,7 +125,6 @@ std::string translated(const std::string& text) {
         {"battery or any light on", "батарея или любой свет включён"},
         {"beacon on or engine started", "маяк включён или запущен двигатель"},
         {"engine running", "двигатель работает"},
-        {"strobes / landing lights", "стробы или посадочные фары"},
         {"strobes / landing lights or rolling", "стробы, фары или разбег"},
         {"airborne", "в воздухе"},
         {"3000 ft AGL", "3000 фт над землёй"},
@@ -217,6 +217,7 @@ MainWindow::MainWindow(Announcer* announcer)
 void MainWindow::syncTextBuffers() {
     const core::Settings& s = announcer_->settings();
     copyInto(libraryBuffer_, sizeof(libraryBuffer_), s.library);
+    copyInto(contactBuffer_, sizeof(contactBuffer_), s.contact);
     buffersFilled_ = true;
 }
 
@@ -734,8 +735,25 @@ void MainWindow::drawReportBlock() {
     small("Если что-то не сработало — отправьте журнал, и я увижу, что произошло. "
           "Уйдут только строки X-Announcer: фазы, объявления, имена звуковых файлов, "
           "версии сима и борта. Строки чужих плагинов не уходят, имя пользователя в "
-          "путях заменяется.");
+          "путях заменяется. Если заполните строку ниже — уйдёт и она, больше ничего.");
     ImGui::PopTextWrapPos();
+
+    // Above the button and full width, with the ask inside the field rather than
+    // on a label beside it. A labelled row at the settings column would import
+    // the grammar of a setting into a block that is one action, and read as a
+    // step to complete before sending; the hint says what it is while it is
+    // empty, which is the only time the question is open. Written to config.ini
+    // like everything else, so the person who reports twice types it once - the
+    // author has no other way back to them at all.
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    ImGui::InputTextWithHint("##contact", "Как с вами связаться — необязательно: Discord, почта, ник",
+                             contactBuffer_, sizeof(contactBuffer_));
+    ImGui::PopStyleVar();
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        announcer_->settings().contact = contactBuffer_;
+        announcer_->settingsChanged();
+    }
 
     const report::Status status = report::status();
     const bool sending = status.state == report::State::Sending;
@@ -765,14 +783,17 @@ void MainWindow::drawReportBlock() {
 #endif
         input.meta.aircraft = announcer_->aircraftIcao();
         input.meta.pack = announcer_->library().pack();
+        input.meta.contact = announcer_->settings().contact;
         // The settings go as the file reads them, minus the sound folder: the
         // path answers no question a report asks, and it is the one line in
         // config.ini that is about this person's disk rather than the plugin.
+        // The contact line goes out too - it has a field of its own above, and
+        // the same address twice in one report reads as two addresses.
         {
             std::istringstream lines(core::writeSettings(announcer_->settings()));
             std::string line;
             while (std::getline(lines, line)) {
-                if (line.rfind("library", 0) == 0) {
+                if (line.rfind("library", 0) == 0 || line.rfind("contact", 0) == 0) {
                     continue;
                 }
                 input.meta.settings += line;

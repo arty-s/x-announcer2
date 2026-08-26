@@ -60,6 +60,11 @@ V2_ONLY = {
     "default_fallback": "1.x always fills a gap in the airline's pack from "
                         "Default and offers no way to say no. v2 defaults to "
                         "the same behaviour, so nothing changes unless asked",
+    "contact": "1.x has no way to send a report at all, so it has nobody to "
+               "be reachable by. In v2 the drop box stores an IP and nothing "
+               "else, and the first two reports came from a stranger the "
+               "author could not answer - this is the line that fixes that. "
+               "Empty by default: it is offered, never assumed",
 }
 
 DELIBERATE = {

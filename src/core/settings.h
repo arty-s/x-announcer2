@@ -79,6 +79,14 @@ struct Settings {
     // "did the plugin start at all", rude once the answer was always yes.
     bool panelOpen = false;
 
+    // How to reach the person who sends a report, in their own words: a Discord
+    // handle, an e-mail, a forum nickname. Optional, and stored rather than
+    // asked every time - a field that has to be retyped in each session is a
+    // field that is empty in every report, which is the state this key exists
+    // to end. It travels in the report's own `contact` field and is stripped
+    // out of the settings dump, so it is sent once, not twice.
+    std::string contact;
+
     // Keys this build does not know: SimBrief and the widget are still to be
     // ported, and a file may also have been written by a newer version. They
     // are carried through a rewrite verbatim, because silently dropping a

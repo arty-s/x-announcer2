@@ -64,6 +64,45 @@ func TestAcceptsReportAndReturnsID(t *testing.T) {
 	}
 }
 
+// The contact is the only way back to a stranger with a broken sim, so the two
+// failure modes are losing it and letting it grow without bound.
+func TestStoresContact(t *testing.T) {
+	reset(t)
+	long := strings.Repeat("x", 5000)
+	rr := post(`{"log":"X-Announcer2: hello","contact":"@vasya#1234 ` + long + `"}`)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (%s)", rr.Code, rr.Body.String())
+	}
+	var found string
+	filepath.Walk(storeDir, func(p string, fi os.FileInfo, err error) error {
+		if err == nil && !fi.IsDir() && strings.HasSuffix(p, ".json") {
+			found = p
+		}
+		return nil
+	})
+	blob, _ := os.ReadFile(found)
+	var envelope map[string]any
+	if err := json.Unmarshal(blob, &envelope); err != nil {
+		t.Fatalf("stored file is not JSON: %v", err)
+	}
+	contact, _ := envelope["contact"].(string)
+	if !strings.HasPrefix(contact, "@vasya#1234 ") {
+		t.Errorf("contact = %q, want the address the sender typed", contact)
+	}
+	if len(contact) != 200 {
+		t.Errorf("contact length = %d, want it clipped to 200", len(contact))
+	}
+}
+
+// A report with a contact and nothing else is still empty: an address alone
+// says who to answer but not what about.
+func TestContactAloneIsStillEmpty(t *testing.T) {
+	reset(t)
+	if rr := post(`{"contact":"mail@example.com"}`); rr.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for a report that is only a contact", rr.Code)
+	}
+}
+
 // An empty report is a bug in the sender, not a report; taking it would fill the
 // store with files nobody can act on.
 func TestRejectsEmptyAndMalformed(t *testing.T) {

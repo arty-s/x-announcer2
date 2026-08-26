@@ -145,6 +145,7 @@ const Help kHelp[] = {
     {"dataref_probe", "писать в журнал датарефы про ремни и знаки, которые меняются; по этим строкам видно, чем управляется табло на незнакомом борте"},
     {"window_scale", "масштаб текста в окне, 1.0 - обычный; больше для VR"},
     {"panel_open", "было ли окно плагина открыто при выходе; так оно и откроется в следующий раз"},
+    {"contact", "как с вами связаться, если отправите журнал: Discord, почта, ник. Пусто - ответить будет некуда"},
 };
 
 const char* helpFor(const std::string& key) {
@@ -254,6 +255,8 @@ Settings parseSettings(const std::string& text, std::vector<std::string>* proble
             parseNumber(key, value, 0.5, 3.0, &s.windowScale, problems);
         } else if (key == "panel_open") {
             parseBool(key, value, &s.panelOpen, problems);
+        } else if (key == "contact") {
+            s.contact = value;
         } else {
             s.unknown[key] = value;
         }
@@ -293,6 +296,7 @@ std::string writeSettings(const Settings& s) {
         {"dataref_probe", boolean(s.datarefProbe)},
         {"window_scale", number(s.windowScale)},
         {"panel_open", boolean(s.panelOpen)},
+        {"contact", s.contact},
     };
 
     for (const auto& [key, value] : entries) {

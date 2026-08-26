@@ -45,6 +45,7 @@ private:
     double appliedScale_ = 0.0;
     bool buffersFilled_ = false;
     char libraryBuffer_[512] = {0};
+    char contactBuffer_[128] = {0};
 };
 
 }  // namespace xa

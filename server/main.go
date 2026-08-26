@@ -50,6 +50,11 @@ type report struct {
 	OS       string `json:"os"`
 	Aircraft string `json:"aircraft"`
 	Pack     string `json:"pack"`
+	// How to answer this person, in their own words — a Discord handle, an
+	// e-mail, a nickname. Optional like everything else, and the only field
+	// here a stranger typed on purpose, so it is stored as sent and never
+	// parsed: guessing what kind of address it is would only get it wrong.
+	Contact  string `json:"contact"`
 	Note     string `json:"note"`
 	Settings string `json:"settings"`
 	Log      string `json:"log"`
@@ -118,8 +123,15 @@ func handleReport(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "store")
 		return
 	}
-	log.Printf("report %s from %s (%d bytes, plugin %q, aircraft %q)",
-		id, ip, len(body), clip(rep.Plugin, 32), clip(rep.Aircraft, 16))
+	// Whether there is a way back to this person, never the address itself: the
+	// journal is read over somebody's shoulder and copied into tickets, and a
+	// stranger's e-mail does not belong in either. The address is in the file.
+	reachable := "no contact"
+	if strings.TrimSpace(rep.Contact) != "" {
+		reachable = "has contact"
+	}
+	log.Printf("report %s from %s (%d bytes, plugin %q, aircraft %q, %s)",
+		id, ip, len(body), clip(rep.Plugin, 32), clip(rep.Aircraft, 16), reachable)
 	writeJSON(w, http.StatusOK, map[string]string{"id": id})
 }
 
@@ -170,6 +182,7 @@ func store(rep report, ip string) (string, error) {
 		"os":       clip(rep.OS, 64),
 		"aircraft": clip(rep.Aircraft, 32),
 		"pack":     clip(rep.Pack, 32),
+		"contact":  clip(rep.Contact, 200),
 		"note":     clip(rep.Note, 4000),
 		"settings": clip(rep.Settings, 8000),
 		"log":      rep.Log,

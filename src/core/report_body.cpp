@@ -135,6 +135,10 @@ std::string buildReportBody(const ReportMeta& meta, const std::string& rawLog) {
     json += "\"os\":\"" + jsonEscape(meta.os) + "\",";
     json += "\"aircraft\":\"" + jsonEscape(meta.aircraft) + "\",";
     json += "\"pack\":\"" + jsonEscape(meta.pack) + "\",";
+    // Not scrubbed: this is the one field the user wrote on purpose, and
+    // scrubPaths would eat an address that happens to read like a path. Capped
+    // instead, because a field is also where a whole log gets pasted by mistake.
+    json += "\"contact\":\"" + jsonEscape(meta.contact.substr(0, kReportMaxContact)) + "\",";
     json += "\"settings\":\"" + jsonEscape(scrubPaths(meta.settings)) + "\",";
     json += "\"log\":\"" + jsonEscape(lines) + "\"";
     json += "}";

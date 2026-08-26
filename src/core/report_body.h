@@ -18,6 +18,10 @@ struct ReportMeta {
     std::string os;
     std::string aircraft;
     std::string pack;
+    // Whatever the user typed in the panel so the author can answer them, or
+    // empty. The one field here that is a person rather than a machine, and the
+    // only reason the panel's promise about the contents needed rewording.
+    std::string contact;
     std::string settings;
 };
 
@@ -25,6 +29,10 @@ struct ReportMeta {
 // person, and the useful part is always the tail.
 inline constexpr std::size_t kReportMaxLogBytes = 256 * 1024;
 inline constexpr std::size_t kReportMaxLines = 4000;
+
+// A way to answer a person fits in a line. Longer than this is a paste, not an
+// address, and the panel's field is smaller still - this is the backstop.
+inline constexpr std::size_t kReportMaxContact = 200;
 
 // Keeps only X-Announcer's own lines from a Log.txt, newest ones for certain,
 // and trims the result to the caps above. Other plugins' lines are dropped -

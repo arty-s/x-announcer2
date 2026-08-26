@@ -67,7 +67,8 @@ void runReportBodyChecks(int* checks, int* failed) {
     check(core::scrubPaths("packs/USERS/AFL") == "packs/USERS/AFL",
           "a folder merely named users is left alone");
 
-    const core::ReportMeta meta{"2.0.0-dev", "12431", "windows", "A20N", "AFL", "volume = 0.8\n"};
+    const core::ReportMeta meta{"2.0.0-dev", "12431", "windows",        "A20N",
+                                "AFL",       "",      "volume = 0.8\n"};
     const std::string body = core::buildReportBody(meta, kLog);
     check(body.front() == '{' && body.back() == '}', "the body is one JSON object");
     check(has(body, "\"aircraft\":\"A20N\""), "the aeroplane goes with it");
@@ -75,6 +76,29 @@ void runReportBodyChecks(int* checks, int* failed) {
     check(!has(body, "XSquawkBox"), "the envelope carries no neighbouring plugin either");
     check(!has(body, "\n"), "no raw newline escapes into the JSON");
     check(has(body, "\\n"), "log line breaks are escaped, not dropped");
+    check(has(body, "\"contact\":\"\""),
+          "an unfilled contact still goes as a field, so the far end never guesses");
+
+    // The contact is the one thing here a person typed rather than the plugin
+    // read, and the three ways that can go wrong are all worth pinning down.
+    core::ReportMeta reachable = meta;
+    reachable.contact = "@someone#1234 / mail@example.com";
+    check(has(core::buildReportBody(reachable, kLog),
+              "\"contact\":\"@someone#1234 / mail@example.com\""),
+          "a filled contact travels verbatim");
+
+    // scrubPaths would eat the name out of an address shaped like a home path.
+    core::ReportMeta pathlike = meta;
+    pathlike.contact = "C:\\Users\\vasya";
+    check(has(core::buildReportBody(pathlike, kLog), "vasya"),
+          "the contact is not scrubbed - the user wrote it on purpose");
+
+    // A field is also where somebody pastes a whole log by accident.
+    core::ReportMeta flooded = meta;
+    flooded.contact = std::string(5000, 'x');
+    const std::string cappedContact = core::buildReportBody(flooded, kLog);
+    check(cappedContact.find(std::string(core::kReportMaxContact + 1, 'x')) == std::string::npos,
+          "an enormous contact is capped rather than sent whole");
 
     // Quotes and backslashes are ordinary in Windows paths and pack names; an
     // unescaped one would make the whole report unreadable at the far end.
