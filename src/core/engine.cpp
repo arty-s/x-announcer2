@@ -413,9 +413,22 @@ void Engine::tick(const Snapshot& s) {
 void Engine::stateMachine(const Snapshot& s) {
     // ------------------------------------------------------------------ ground
     if (f_.phase == Phase::Preflight) {
-        const bool powered = aircraftPowered(s);
+        bool blind = false;
+        const bool powered = aircraftPowered(s, nullptr, &blind);
+        // Blind means "none of the four exists here", and aircraftPowered answers
+        // yes to it on purpose - a question we cannot ask must not hold the
+        // flight up. But answering yes IMMEDIATELY is what made a cold and dark
+        // aeroplane start boarding the second it loaded: at that moment nothing
+        // has been read yet, so every aeroplane looks blind, and a stock dataref
+        // nobody has been seen to drive goes on looking blind until somebody
+        // flips it. The wave-through stays; it just waits until we have actually
+        // finished asking. On an aeroplane that publishes its switches a second
+        // late that is the whole difference, and on one that publishes nothing
+        // at all it costs the two minutes of the search and then behaves as
+        // before - late is recoverable, a cabin that never opens is not.
+        const bool mayWaveThrough = !blind || s.signalsSettled;
         if (s.onGround && s.allEnginesOff() && !isOn(s.beacon) && s.gsKt < 1.0) {
-            if (config_.autoBoarding && powered) {
+            if (config_.autoBoarding && powered && mayWaveThrough) {
                 setPhase(Phase::Boarding, "cabin ready");
                 once("BoardingStarted", "cabin ready");
             }
@@ -737,7 +750,18 @@ std::vector<Condition> Engine::phaseConditions(const Snapshot& s) const {
             bool blind = false;
             const bool powered = aircraftPowered(s, &on, &blind);
             std::string reading;
-            if (blind) {
+            // Exactly the machine's own test, and it has to be: the bench flies
+            // every scenario and fails if the phase moves while this list still
+            // shows something unmet, so a wave-through the machine has not
+            // granted yet must read as unmet here too.
+            const bool waved = blind && s.signalsSettled;
+            if (blind && !s.signalsSettled) {
+                // Not "no power" - "not read yet". The aeroplane's own datarefs
+                // are still being looked for, and saying nothing here would
+                // leave someone staring at a dark lamp on a cockpit they have
+                // just powered up.
+                reading = "still looking for this aircraft's datarefs";
+            } else if (waved) {
                 // Met, but for a reason the person has to be told: this
                 // aeroplane publishes none of the four, so the condition is
                 // waved through rather than satisfied. Without the note the
@@ -763,7 +787,7 @@ std::vector<Condition> Engine::phaseConditions(const Snapshot& s) const {
                 yes("on the ground", s.onGround),
                 yes("engines off", s.allEnginesOff()),
                 yes("beacon off", !isOn(s.beacon)),
-                yes("battery or any light on", powered, reading),
+                yes("battery or any light on", powered && (!blind || s.signalsSettled), reading),
             };
         }
         case Phase::Boarding:

@@ -181,6 +181,9 @@ std::string translatedValue(const std::string& text) {
     if (out == "this aircraft publishes none - not waiting for it") {
         return "борт ничего из этого не публикует — не жду";
     }
+    if (out == "still looking for this aircraft's datarefs") {
+        return "ещё ищу датарефы борта — подожду с посадкой";
+    }
     if (out.rfind("no battery", 0) == 0) {
         out.replace(0, 10, "нет батареи");
     }

@@ -385,6 +385,13 @@ void Announcer::frame() {
     }
     probe_.poll(wallNow);
 
+    // Read after the block above, not inside SimState::read(): the search is the
+    // plugin's business, and the core only needs the one bit of it - "have we
+    // finished asking this aeroplane what it publishes". Until we have, an
+    // aeroplane that looks blind may simply be an aeroplane whose own datarefs
+    // have not appeared yet, and the machine must not open the cabin on it.
+    snapshot_.signalsSettled = signalSearchDone_;
+
     engine_->frame(snapshot_, simDt, wallDt);
 
     // The state machine runs at 1 Hz, as it did in 1.x. Running it per frame

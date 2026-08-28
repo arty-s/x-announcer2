@@ -21,6 +21,12 @@ using namespace xa::core;
 // than reality - a separator X-Plane never produces, an ImGui binding that
 // answered to any name at all. So this one refuses anything not listed, and the
 // scenario has to say out loud which sounds a pack contains.
+// How long both implementations keep looking for the aeroplane's own datarefs
+// before they accept that it publishes nothing. Not a setting in either of them
+// - a constant, duplicated here on purpose so a scenario can be flown without a
+// simulator and still meet the same deadline the plugin meets.
+constexpr double kSignalSearchSeconds = 120.0;
+
 class ScriptedLibrary : public SoundLibrary {
 public:
     void declare(const std::string& event, double seconds) { entries_[event] = seconds; }
@@ -295,6 +301,13 @@ private:
         const int frames = static_cast<int>(seconds * fps);
         for (int i = 0; i < frames; ++i) {
             const double wallDt = ((i + 1) % fps == 0) ? 1.0 : 0.0;
+            // The plugin hunts for the aeroplane's own datarefs for two minutes
+            // after it loads and only then accepts that there are none. Modelled
+            // here instead of being made a scenario directive, because 1.x's
+            // search ends by the same clock: a directive would let the two
+            // implementations be flown on different deadlines, and the whole
+            // point of the shared .scn files is that they cannot be.
+            sim_.signalsSettled = e.wallClock() >= kSignalSearchSeconds;
             e.frame(sim_, step * rate, wallDt);
 
             if (i % fps == 0) {

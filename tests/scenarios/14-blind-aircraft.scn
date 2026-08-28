@@ -23,8 +23,18 @@ library TopOfClimbPilot AfterLanding DisarmDoors DisembarkStarted
 set hour=12 seatbelt=unknown battery=unknown nav=unknown logo=unknown
 set taxi=unknown beacon=unknown strobe=unknown landing=unknown parkbrake=unknown
 
-# ---- the cabin opens without a single light -------------------------------
+# ---- and not a word while the datarefs are still being looked for ---------
+# An aeroplane that publishes nothing and an aeroplane whose own plugin has not
+# registered its datarefs yet look exactly alike from here, and for the first
+# two minutes after loading the second one is the likelier of the two. Waving
+# the power check through at once is what made a cold and dark cockpit start
+# boarding passengers the moment the flight loaded.
 advance 20
+expect phase PREFLIGHT
+expect not-played BoardingStarted
+
+# ---- the search gives up, and then the cabin opens without a single light --
+advance 120
 expect phase BOARDING
 expect played BoardingStarted
 expect played BoardingWelcome

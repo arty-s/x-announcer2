@@ -55,6 +55,20 @@ struct Snapshot {
     Tri battery = Tri::Unknown;
     Tri seatbelt = Tri::Unknown;
 
+    // "We have finished asking this aeroplane what it publishes." Not a fact
+    // about the aeroplane at all - a fact about how much of it we have had time
+    // to learn. The plugin hunts for the aircraft's own datarefs for two minutes
+    // after it loads, because plugin load order is not guaranteed, so for those
+    // two minutes every signal above can read Unknown on an aeroplane that will
+    // publish all four a second later.
+    //
+    // The distinction matters in exactly one place: where Unknown is waved
+    // through as "yes" (aircraftPowered). Waving it through while we are still
+    // looking is how a cold and dark aeroplane starts boarding at the moment it
+    // loads. Default true because the core is allowed to be used by something
+    // that has no search to wait for - only a caller that HAS one can say no.
+    bool signalsSettled = true;
+
     int enginesRunning = 0;
     int localHour = 12;
 
