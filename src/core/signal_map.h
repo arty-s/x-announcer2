@@ -45,6 +45,18 @@ struct SignalOverrides {
 // sample file to list.
 const std::vector<std::string>& signalIds();
 
+// A dataref name may carry the element it means: "AirbusFBW/BatOHPArray[1]".
+// Returns the name X-Plane knows - without the suffix - and writes the element
+// to `index`, which is 0 for a plain name.
+//
+// The suffix is ours, not X-Plane's, which is why the split happens before any
+// lookup and why it lives here rather than beside the one call that reads a
+// number: a name travels through the binder, the retry loop and the log first,
+// and a name with a suffix on it is a name X-Plane has never heard of. The
+// suffix stays on for the log - somebody reading "battery reads 0" has to be
+// able to see which battery.
+std::string datarefElement(const std::string& name, int* index);
+
 // Reads the file. Anything malformed is skipped and described in `problems`:
 // a file that is half-understood must say which half, and one bad line must
 // never cost the user the other twenty.

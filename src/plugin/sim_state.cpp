@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 #include "XPLMDataAccess.h"
@@ -67,6 +68,7 @@ const Candidate kAircraftCandidates[] = {
     {Signal::NavLights, "laminar/B738/toggle_switch/position_light_pos", 1.0, false, kNoRule, -1},
     {Signal::NavLights, "1-sim/ckpt/navLightSwitch/anim", 1.0, false, kNoRule, -1},
     {Signal::NavLights, "Rotate/aircraft/controls/nav_lts", 1.0, false, kNoRule, -1},
+    {Signal::NavLights, "ckpt/oh/navLight/anim", 1.0, false, kNoRule, -1},  // ToLiss
 
     // --------------------------------------------------------------- strobes
     // The 777 wires these the other way up - on(0), off(1) in its own switch
@@ -86,6 +88,7 @@ const Candidate kAircraftCandidates[] = {
     {Signal::TaxiLight, "1-sim/ckpt/taxiLightSwitch/anim", 0.0, true, kNoRule, -1},
     {Signal::TaxiLight, "laminar/B738/toggle_switch/taxi_light_brightness_pos", 1.0, false,
      kNoRule, -1},
+    {Signal::TaxiLight, "ckpt/oh/taxiLight/anim", 1.0, false, kNoRule, -1},  // ToLiss
 
     // ------------------------------------------------------------ logo lights
     // X-Plane itself publishes no logo light; only add-ons do, which is why this
@@ -97,6 +100,12 @@ const Candidate kAircraftCandidates[] = {
 
     // ---------------------------------------------------------------- battery
     {Signal::Battery, "1-sim/ckpt/batteryButton/anim", 1.0, false, kNoRule, -1},
+    // ToLiss. The push buttons themselves, published as a pair and read by the
+    // aeroplane's own sound pack to play the battery relay - so this is the
+    // switch the Airbus actually watches, not a name near it. Element 0 is BAT1;
+    // either battery in is power on the DC bus, and BAT1 is the one that goes in
+    // first on every start-up the aeroplane documents.
+    {Signal::Battery, "AirbusFBW/BatOHPArray[0]", 1.0, false, kNoRule, -1},
 
     // ----------------------------------------------------------- park brake
     {Signal::Parkbrake, "1-sim/ckpt/parkbrake/anim", 1.0, false, kNoRule, -1},
@@ -155,7 +164,10 @@ const Candidate kStockCandidates[] = {
     {Signal::Strobe, "sim/cockpit2/switches/strobe_lights_on", 1.0, false, kNoRule, -1},
     {Signal::LandingLight, "sim/cockpit2/switches/landing_lights_on", 1.0, false, kNoRule, -1},
     {Signal::TaxiLight, "sim/cockpit2/switches/taxi_light_on", 1.0, false, kNoRule, -1},
-    {Signal::Battery, "sim/cockpit2/electrical/battery_on", 1.0, false, kNoRule, -1},
+    // int[8], one per battery, and the element has to be named: read as a scalar
+    // this answered zero on every aeroplane in the simulator, never moved, and
+    // so counted as "this aeroplane does not publish a battery" for ever.
+    {Signal::Battery, "sim/cockpit2/electrical/battery_on[0]", 1.0, false, kNoRule, -1},
     {Signal::Parkbrake, "sim/flightmodel/controls/parkbrake", 0.5, false, kNoRule, -1},
     // Seat belt has two stock sources and a rule of its own; see seatbeltTri().
     {Signal::Seatbelt, kSeatbeltAnnunciator, 1.0, false, kNoRule, -1},
@@ -252,12 +264,20 @@ bool SimState::bindSignal(Signal signal, const std::string& override, bool annou
         if (fresh.bound()) {
             return;
         }
-        XPLMDataRef ref = find(name);
+        // A name may carry the element it means: "AirbusFBW/BatOHPArray[1]".
+        // The suffix comes off before the lookup and stays on in b.name - the
+        // log and the panel should show the element that is actually being read,
+        // or the next report about a battery that reads zero costs another round
+        // of questions.
+        int index = 0;
+        const std::string plain = core::datarefElement(name, &index);
+        XPLMDataRef ref = find(plain.c_str());
         if (ref == nullptr) {
             return;
         }
         fresh.ref = ref;
         fresh.name = name;
+        fresh.index = index;
         fresh.on = on;
         fresh.atMost = atMost;
         fresh.rule = static_cast<AutoRule>(rule);
@@ -381,6 +401,20 @@ double SimState::sample(const Binding& b) const {
         value = XPLMGetDatad(ref);
     } else if ((type & xplmType_Float) != 0) {
         value = static_cast<double>(XPLMGetDataf(ref));
+    } else if ((type & xplmType_FloatArray) != 0) {
+        // Arrays are asked by element or not at all. The scalar accessors do not
+        // refuse an array - they return zero - so a table that only knew the
+        // scalar calls reported "off, and never moved" on a battery that was on
+        // the whole time.
+        float element = 0.0f;
+        if (XPLMGetDatavf(ref, &element, b.index, 1) == 1) {
+            value = static_cast<double>(element);
+        }
+    } else if ((type & xplmType_IntArray) != 0) {
+        int element = 0;
+        if (XPLMGetDatavi(ref, &element, b.index, 1) == 1) {
+            value = static_cast<double>(element);
+        }
     } else {
         value = static_cast<double>(XPLMGetDatai(ref));
         // Some aeroplanes publish a switch position as a float and nothing else.

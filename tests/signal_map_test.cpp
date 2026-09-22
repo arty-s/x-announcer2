@@ -119,6 +119,32 @@ void runSignalMapChecks(int* checks, int* failed) {
     }
 
     {
+        // An array dataref asked for a scalar does not fail - it answers zero,
+        // for ever - so naming the element is the only way to read one at all.
+        int index = -1;
+        check(core::datarefElement("AirbusFBW/BatOHPArray[1]", &index) == "AirbusFBW/BatOHPArray",
+              "the element comes off the name X-Plane is asked for");
+        check(index == 1, "and is the element that was asked for");
+        check(core::datarefElement("sim/cockpit2/electrical/battery_on[0]", &index) ==
+                  "sim/cockpit2/electrical/battery_on",
+              "element 0 is written out like any other");
+        check(index == 0, "and reads as 0");
+        check(core::datarefElement("laminar/B738/toggle_switch/logo_light", &index) ==
+                  "laminar/B738/toggle_switch/logo_light",
+              "a plain name is left exactly as it was written");
+        check(index == 0, "and means element 0");
+        // Anything that is not an element must survive untouched: these are
+        // names people type into signals.ini, and a name silently cut short
+        // would bind to nothing and report "this aircraft publishes none".
+        check(core::datarefElement("a/b[]", &index) == "a/b[]", "empty brackets are part of a name");
+        check(core::datarefElement("a/b[x]", &index) == "a/b[x]", "and so is anything not a number");
+        check(core::datarefElement("a/b[1", &index) == "a/b[1", "an unclosed bracket is not an element");
+        check(core::datarefElement("a/b[99999999999]", &index) == "a/b[99999999999]",
+              "a number too long to be an element is a typo, not an element");
+        check(index == 0, "and none of those changed the element");
+    }
+
+    {
         // The sample is what a person sees first, so it has to parse as itself.
         std::vector<std::string> problems;
         const core::SignalOverrides map =

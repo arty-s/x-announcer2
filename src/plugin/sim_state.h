@@ -133,6 +133,16 @@ private:
         // for exactly as long as they were dark.
         double on = 1.0;
         bool atMost = false;
+        // Which element of it, for a dataref that is an array - and plenty of
+        // the interesting ones are. X-Plane publishes the battery switch as
+        // int[8], an Airbus publishes its battery push buttons as an array of
+        // two, and an array asked for a scalar does not fail: it answers a
+        // confident zero, for ever. Read that as "off" and the aeroplane looks
+        // dead with every light burning; read it as "never moved" - which is
+        // what a stock dataref's provisional rule does - and the aeroplane looks
+        // blind, which is how a cold and dark cabin started boarding itself.
+        // A name may pick its own element: "sim/.../battery_on[1]".
+        int index = 0;
         bool fromAircraft = false;
         // A stock dataref exists whatever is loaded, so finding one proves
         // nothing. It counts as an answer only once it has been seen lit or seen

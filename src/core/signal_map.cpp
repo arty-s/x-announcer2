@@ -75,6 +75,37 @@ const std::vector<std::string>& signalIds() {
     return ids;
 }
 
+std::string datarefElement(const std::string& name, int* index) {
+    if (index != nullptr) {
+        *index = 0;
+    }
+    if (name.size() < 4 || name.back() != ']') {
+        return name;
+    }
+    const std::string::size_type open = name.rfind('[');
+    if (open == std::string::npos || open == 0 || open + 1 == name.size() - 1) {
+        return name;  // "[]", or a name that only ends like one
+    }
+    // Six digits is already a hundred times the longest array X-Plane
+    // publishes; past that it is not an element but a typo, and multiplying it
+    // out would overflow an int - the file is hand-written, so it gets the
+    // careful reading a hand-written file needs.
+    if (name.size() - open > 8) {
+        return name;
+    }
+    int value = 0;
+    for (std::string::size_type i = open + 1; i + 1 < name.size(); ++i) {
+        if (std::isdigit(static_cast<unsigned char>(name[i])) == 0) {
+            return name;  // not an element - leave the name exactly as written
+        }
+        value = value * 10 + (name[i] - '0');
+    }
+    if (index != nullptr) {
+        *index = value;
+    }
+    return name.substr(0, open);
+}
+
 std::vector<SignalOverride> SignalOverrides::forAircraft(const std::string& icao) const {
     std::vector<SignalOverride> out;
     const auto own = byAircraft.find(upper(icao));
@@ -184,6 +215,8 @@ std::string sampleSignalOverrides() {
         "# Раздел - код борта из X-Plane (B738, B772, A20N) либо * для всех.\n"
         "# Строка - сигнал = датареф [on>=значение | on<=значение].\n"
         "# По умолчанию \"включено\" - это значение 1 и выше.\n"
+        "# Если датареф - массив, элемент пишется в скобках:\n"
+        "# battery = AirbusFBW/BatOHPArray[0]   (без скобок берётся нулевой)\n"
         "#\n"
         "# Сигналы: beacon, nav, strobe, landing, taxi, logo, battery,\n"
         "#          parkbrake, seatbelt, route_distance.\n"
