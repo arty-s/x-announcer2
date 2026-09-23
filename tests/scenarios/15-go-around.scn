@@ -1,0 +1,98 @@
+# Уход на второй круг: единственный ход этой машины НАЗАД.
+#
+# До 23.09.2026 его не было вовсе. Из APPROACH существовал ровно один выход - на
+# землю и в TAXI_IN, - а все объявления прибытия сидят под once(). Значит после
+# ухода второй заход проходил МОЛЧА: ни «приготовиться к посадке», ни «экипажу
+# занять места». В журнале при этом ничего не пропадало, потому что ничего и не
+# было должно случиться - ровно тот отказ, ради которого весь проект и пишется.
+#
+# Здесь уход сделан из касания (touch-and-go), потому что так он проверяет обе
+# половины сразу: и перезарядку объявлений захода, и то, что реакция кабины на
+# касание снимается. «Какая мягкая посадка» поверх уходящего на второй круг
+# борта хуже молчания.
+
+config door_calls=1 landing_reaction=1 boarding_music=0 boarding_repeat=300
+library BoardingStarted BoardingWelcome BoardingComplete ArmDoors DisarmDoors
+library SafetyBriefing:20 CrewSeatsTakeoff CallCabinSecureTakeoff AfterTakeoff
+library DescentSeatbelts BeforeLanding CrewSeatsLanding CallCabinSecureLanding
+library AfterLanding LandingGreat LandingTerrible DisembarkStarted
+
+set hour=12 battery=1 nav=1 seatbelt=0
+advance 20
+expect phase BOARDING
+
+set beacon=1 engines=2
+advance 200
+expect phase PUSHBACK
+expect played SafetyBriefing
+
+set strobe=1
+advance 20
+expect phase TAKEOFF
+
+set on_ground=0 agl_ft=6000 alt_ft=7000 vs_fpm=2000 gs_kt=250
+advance 30
+expect phase CLIMB
+set alt_ft=33000 agl_ft=32000 vs_fpm=0
+advance 60
+expect phase CRUISE
+
+set alt_ft=9000 agl_ft=8000 vs_fpm=-1400
+advance 40
+expect phase DESCENT
+expect played DescentSeatbelts
+
+set agl_ft=4000 alt_ft=4500 vs_fpm=-700
+advance 20
+expect played BeforeLanding
+
+set agl_ft=2000 alt_ft=2500 vs_fpm=-700
+advance 20
+expect phase APPROACH
+expect played CrewSeatsLanding
+
+# ---- касание и уход ------------------------------------------------------
+# Вертикальная на касании мягкая: если реакцию кабины не снять, через восемь
+# секунд она похвалит посадку, которой не было.
+set agl_ft=300 alt_ft=800 vs_fpm=-150
+advance 3
+set on_ground=1 agl_ft=0 alt_ft=500 vs_fpm=0 gs_kt=120
+advance 2
+expect phase APPROACH
+
+# Режим взлётный: вертикальная выше 500 fpm и реально набранные футы. Одной
+# вертикальной мало - её показывает и выравнивание, и козление.
+set on_ground=0 agl_ft=700 alt_ft=1200 vs_fpm=900
+advance 5
+expect phase DESCENT
+expect not-played LandingGreat
+expect not-played LandingTerrible
+expect not-played AfterLanding
+
+# ---- второй заход, и кабина обязана заговорить снова ----------------------
+set agl_ft=2500 alt_ft=3000 vs_fpm=0
+advance 10
+set agl_ft=4000 alt_ft=4500 vs_fpm=-700
+advance 20
+expect play-count BeforeLanding 2
+
+set agl_ft=2000 alt_ft=2500 vs_fpm=-700
+advance 20
+expect phase APPROACH
+expect play-count CrewSeatsLanding 2
+
+# ---- и посадка по-настоящему ---------------------------------------------
+set agl_ft=200 alt_ft=700 vs_fpm=-150
+advance 3
+set on_ground=1 agl_ft=0 alt_ft=500 vs_fpm=0 gs_kt=40
+advance 40
+expect phase TAXI_IN
+expect played AfterLanding
+expect played LandingGreat
+expect not-played LandingTerrible
+
+set engines=0 beacon=0 parkbrake=1 gs_kt=0
+advance 60
+expect phase DISEMBARK
+expect played DisarmDoors
+expect played DisembarkStarted

@@ -130,6 +130,13 @@ private:
         std::optional<double> touchdownAt;
         std::optional<double> liftoffAt;
         std::optional<double> resyncSince;
+        // The bottom of the approach being flown, and how long the aeroplane has
+        // been climbing away from it. A go-around is the only move in this
+        // machine that goes BACKWARDS, so it is also the only one that has to
+        // know where it started from: "climbing" is what a flare looks like too,
+        // and the height gained since the lowest point is what tells them apart.
+        std::optional<double> approachLowFt;
+        std::optional<double> goAroundSince;
         double turbPeak = 0.0;
         bool wasAirborne = false;
         double lastVs = 0.0;
@@ -154,6 +161,7 @@ private:
     void stopMusic();
     void audioUpdate();
     void resyncPhase(const Snapshot& s);
+    void goAround();
     void stateMachine(const Snapshot& s);
 
     Config config_;

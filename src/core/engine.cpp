@@ -54,6 +54,18 @@ constexpr double kCruiseMinNm = 150.0;
 // lights would have put it rather than at V1.
 constexpr double kRollingKt = 40.0;
 
+// A go-around, and what it takes to believe in one. Vertical speed alone is not
+// enough: the flare shows a few hundred feet a minute upwards, a bounce shows
+// more, and an approach flown down a step has moments of it all the way in.
+// The height actually gained is the other half of the question. Both numbers
+// come from Air Virtua's tracker, which reads the same events off the same
+// simulators and arrived at them the expensive way - the 400 ft in particular,
+// after an aeroplane levelling at a 1500 ft platform under vectors gave +900
+// fpm for five seconds and ninety feet of climb, and was called a go-around.
+constexpr double kGoAroundVsFpm = 500.0;
+constexpr double kGoAroundHoldSec = 3.0;
+constexpr double kGoAroundGainFt = 400.0;
+
 // How far there is left to fly. The aeroplane's own figure first: an add-on with
 // a real FMC keeps the route inside itself and leaves X-Plane's FMS empty, so
 // the great-circle sum below has nothing to work from on precisely the aircraft
@@ -400,6 +412,37 @@ void Engine::resyncPhase(const Snapshot& s) {
     }
 }
 
+void Engine::goAround() {
+    // Everything the cabin says on the way down is a once() - exactly right for
+    // a flight with one approach, and exactly wrong for a flight with two.
+    // Before this, a go-around left the machine sitting in APPROACH with every
+    // arrival call already marked as heard, and the second approach was flown in
+    // complete silence: no "prepare for landing", no "cabin crew, take your
+    // seats". Nothing was missing from the log, because nothing was due.
+    //
+    // Re-armed are the calls that belong to AN approach, and only those. The
+    // descent PA and the night dimming belong to the arrival as a whole: they
+    // were said once and have not become untrue.
+    for (const char* event : {"BeforeLanding", "CrewSeatsLanding", "CallCabinSecureLanding"}) {
+        f_.done.erase(event);
+        f_.ended.erase(event);
+    }
+    // A touch-and-go leaves a touchdown behind it, and the cabin's reaction to
+    // one is due eight seconds later - by which time we are climbing away with
+    // the gear coming up. "What a smooth landing" over a go-around is worse than
+    // silence, and it is the sort of thing a person reports as the plugin having
+    // lost its mind.
+    f_.touchdownAt.reset();
+    f_.touchdownFpm.reset();
+    f_.approachLowFt.reset();
+    f_.goAroundSince.reset();
+    // Back to DESCENT rather than into a phase of its own: what follows a
+    // go-around is another approach, and DESCENT is the phase that knows how to
+    // start one. The widget says "Descent" again, which is what the aeroplane is
+    // about to do.
+    setPhase(Phase::Descent, "go-around");
+}
+
 void Engine::tick(const Snapshot& s) {
     if (frozen_) {
         return;
@@ -663,7 +706,29 @@ void Engine::stateMachine(const Snapshot& s) {
     }
 
     if (f_.phase == Phase::Approach) {
-        if (s.onGround && s.gsKt < 60.0) {
+        // How low this approach has been. Kept per approach, not per flight: the
+        // second one is measured from its own bottom, or a go-around off a
+        // touch-and-go would still be compared against the first one's runway.
+        if (!f_.approachLowFt || s.aglFt < *f_.approachLowFt) {
+            f_.approachLowFt = s.aglFt;
+        }
+        const bool climbingAway =
+            !s.onGround && s.vsFpm > kGoAroundVsFpm && f_.approachLowFt &&
+            (s.aglFt - *f_.approachLowFt) > kGoAroundGainFt;
+        if (climbingAway) {
+            if (!f_.goAroundSince) {
+                f_.goAroundSince = simClock_;
+            }
+            if (simClock_ - *f_.goAroundSince >= kGoAroundHoldSec) {
+                note("go-around: %.0f ft gained since the bottom of the approach",
+                     s.aglFt - *f_.approachLowFt);
+                goAround();
+            }
+        } else {
+            f_.goAroundSince.reset();
+        }
+
+        if (f_.phase == Phase::Approach && s.onGround && s.gsKt < 60.0) {
             once("AfterLanding", "vacated");
             setPhase(Phase::TaxiIn, "vacated");
         }
