@@ -131,7 +131,14 @@ target_compile_definitions(x_announcer2 PRIVATE
 )
 
 if(WIN32)
-    target_compile_definitions(x_announcer2 PRIVATE IBM=1 WIN32_LEAN_AND_MEAN NOMINMAX)
+    # WIN32_LEAN_AND_MEAN is spelled with an empty value on purpose. SDK 4.4.0-b1
+    # defines it in XPLMDefs.h UNCONDITIONALLY, one line above its own #ifndef
+    # guard, so the guard never gets a say and every translation unit that had it
+    # from the command line warns C4005. An empty value is the same replacement
+    # list the header uses, which makes the redefinition identical and silent.
+    # Dropping it here instead would leave any file that reaches windows.h before
+    # XPLMDefs.h pulling in the fat header.
+    target_compile_definitions(x_announcer2 PRIVATE IBM=1 WIN32_LEAN_AND_MEAN= NOMINMAX)
     target_link_libraries(x_announcer2 PRIVATE
         "${XA_SDK}/Libraries/Win/XPLM_64.lib"
         opengl32

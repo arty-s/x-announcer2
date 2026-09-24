@@ -32,6 +32,13 @@ float readFloat(void* ref, float fallback) {
 // stops reporting the sign.
 const char* const kSeatbeltAnnunciator = "sim/cockpit2/annunciators/fasten_seatbelt";
 
+// Where the flap HANDLE is. 12.4.4 renamed it and prints "has been replaced.
+// Please use the new name." on every lookup of the old spelling, once per start.
+// Not flap_system_deploy_ratio: that is where the surfaces actually are, and the
+// AUTO rule follows what the crew commanded, not what the flaps have reached.
+const char* const kFlapHandleRatio = "sim/cockpit2/controls/flap_handle_request_ratio";
+const char* const kFlapHandleRatioPre1244 = "sim/cockpit2/controls/flap_ratio";
+
 // Mirrors SimState::AutoRule, which is private to the class. The values line up
 // and are converted at the single place this table is read.
 enum class AutoRuleTag { None, FlapsOrGear, SignThenFlaps };
@@ -235,7 +242,19 @@ void SimState::bind(const std::string& seatbeltOverride) {
     seatbeltStock2_ = find("sim/cockpit2/switches/fasten_seat_belts");
     seatbeltStock1_ = find("sim/cockpit/switches/fasten_seat_belts");
     // Commanded, not the surfaces: the crew's AUTO decision follows the lever.
-    flapRatio_ = find("sim/cockpit2/controls/flap_ratio");
+    //
+    // The new name is asked for FIRST, and the old one is only reached when the
+    // new one is absent - which is 12.0-12.3, where the old name is the only one
+    // there is and nothing is printed. The order is not cosmetic in either
+    // direction: on 12.4.4 the old name still RESOLVES, so asking for it first
+    // would both print the sim's warning and mean the new name is never reached
+    // (the trap where a candidate that always resolves silently ends the list).
+    flapRatio_ = find(kFlapHandleRatio);
+    flapRatioName_ = kFlapHandleRatio;
+    if (flapRatio_ == nullptr) {
+        flapRatio_ = find(kFlapHandleRatioPre1244);
+        flapRatioName_ = kFlapHandleRatioPre1244;
+    }
     gearHandle_ = find("sim/cockpit2/controls/gear_handle_down");
     paxOxygen_ = find("sim/operation/failures/rel_pass_o2_on");
     signSeenLit_ = false;
@@ -527,8 +546,8 @@ core::Tri SimState::seatbeltTri() const {
     if (!loggedAuto_) {
         loggedAuto_ = true;
         log("datarefs: seatbelt switch is in AUTO - the aircraft decides, so the sign is taken "
-            "from flaps and gear (%s never lit here)",
-            kSeatbeltAnnunciator);
+            "from flaps and gear (%s never lit here, flaps read from %s)",
+            kSeatbeltAnnunciator, flapRatioName_);
     }
     return (flapsOut || gearDown) ? core::Tri::On : core::Tri::Off;
 }

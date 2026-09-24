@@ -197,6 +197,10 @@ private:
     void* seatbeltStock2_ = nullptr;  // sim/cockpit2/switches/fasten_seat_belts
     void* seatbeltStock1_ = nullptr;  // sim/cockpit/switches/fasten_seat_belts
     void* flapRatio_ = nullptr;
+    // Which spelling of the flap handle this sim answered to. Said out loud in
+    // the log, because "the sign never lights in AUTO" and "the name moved under
+    // us" look identical from the cockpit.
+    const char* flapRatioName_ = "";
     void* gearHandle_ = nullptr;
     void* paxOxygen_ = nullptr;
     mutable bool loggedAuto_ = false;
