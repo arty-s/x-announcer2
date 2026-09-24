@@ -79,7 +79,8 @@
   .lede b{color:var(--ink); font-weight:500}
 
   /* ---- version cards ---- */
-  .versions{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:44px}
+  .versions{display:grid; grid-template-columns:minmax(0,560px); justify-content:center;
+    gap:18px; margin-bottom:44px}
   @media(max-width:760px){.versions{grid-template-columns:1fr}}
   .card{
     background:var(--glass);
@@ -224,19 +225,6 @@
         · ZIP · 601 КБ</p>
     </div>
 
-    <div class="card alt">
-      <div class="vhead"><span class="vname">Версия 1</span><span class="vnum">1.2.5</span></div>
-      <p class="vsub">Скрипт для FlyWithLua. Работает всюду, где работает сам FlyWithLua.</p>
-      <ul class="vlist">
-        <li><b>Windows, macOS и Linux</b></li>
-        <li>Загрузка плана из <b>SimBrief</b> и виджет фазы поверх экрана</li>
-        <li>Та же машина фаз и тот же формат звуковых паков</li>
-        <li class="no">Нужен установленный FlyWithLua</li>
-        <li class="no">Интерфейс английский</li>
-      </ul>
-      <a class="dl ghost" href="x-announcer-1.2.5.zip" download>Скачать для всех систем</a>
-      <p class="meta">ZIP · 157 КБ</p>
-    </div>
   </div>
 
   <section class="packs">
@@ -263,9 +251,8 @@
     <h2>Установка</h2>
     <div class="panel">
       <ol class="strip">
-        <li><b>Версия 2:</b> распакуйте архив в <code>X-Plane 12/Resources/plugins/</code> — рядом с папками
+        <li>Распакуйте архив в <code>X-Plane 12/Resources/plugins/</code> — рядом с папками
           других плагинов появится <code>x_announcer2</code>.</li>
-        <li><b>Версия 1:</b> распакуйте в <code>X-Plane 12/Resources/plugins/FlyWithLua/Scripts/</code>.</li>
         <li>Положите звуковые паки в папку со звуками: по <b>папке на авиакомпанию</b>, названной кодом ИКАО —
           <code>AFL</code>, <code>SBI</code>, <code>DLH</code>. Внутри — файлы событий:
           <code>BoardingWelcome.ogg</code>, <code>SafetyBriefing.ogg</code> и так далее. Формат тот же, что у паков
@@ -314,8 +301,8 @@
   </section>
 
   <footer>
-    <span>Исходники версии 1 и обсуждение —
-      <a href="https://github.com/arty-s/x-announcer">github.com/arty-s/x-announcer</a></span>
+    <span>Исходники и обсуждение —
+      <a href="https://github.com/arty-s/x-announcer2">github.com/arty-s/x-announcer2</a></span>
     <span class="sep">X-Vatrus</span>
   </footer>
 </main>
