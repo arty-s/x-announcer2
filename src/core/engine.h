@@ -187,6 +187,11 @@ private:
 // battery dataref. On a ToLiss the battery reads off with the aircraft fully
 // powered and the nav lights are what actually move.
 //
+// Generous is also why every one of the four must be honest: one "on" outvotes
+// any number of "off". X-Plane's generic battery is not read at all any more -
+// cold and dark it said "on" on three aeroplanes out of four - so the battery is
+// only ever the aeroplane's own, and Unknown everywhere else.
+//
 // `blind` comes back true when the aeroplane publishes NONE of the four. In that
 // case the answer is yes, because a question we cannot ask must not be allowed
 // to hold the flight up - and the caller is told, so the panel can say which

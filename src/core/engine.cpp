@@ -841,8 +841,11 @@ std::vector<Condition> Engine::phaseConditions(const Snapshot& s) const {
                 // plugin can see, or - when it sees none - which ones it watches.
                 // On an aircraft whose battery switch never reaches X-Plane that
                 // is the difference between "flip the nav lights" and "the plugin
-                // is broken".
-                reading = "no battery/nav";
+                // is broken". Battery and logo are named only where this
+                // aeroplane has them: neither has a stock fallback, so on most
+                // aeroplanes there is no battery to be off, and naming one
+                // sends somebody looking for a switch the plugin never reads.
+                reading = known(s.battery) ? "no battery/nav" : "no nav";
                 if (known(s.logo)) {
                     reading += "/logo";
                 }

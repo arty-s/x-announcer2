@@ -13,6 +13,11 @@
 // and only becomes a real reading once it has been seen lit or seen to move. A
 // dataref the aeroplane published under its own name needs no such proof - the
 // name existing is the proof.
+//
+// Between the two sits what X-Plane DRAWS: the brightness the simulator itself
+// computed for a light, sim/flightmodel2/lights/*. It always exists too, but it
+// is not a value an add-on may simply never write - the sim writes it every
+// frame - so it is believed at once, dark included. See SignalSource.
 #pragma once
 
 #include <string>
@@ -38,6 +43,26 @@ enum class Signal {
     Count
 };
 
+// Where a reading comes from, which decides how far it is believed before it
+// has been seen to do anything. Search order is the order below: the first
+// source that has a name for the signal wins, and only a name of the
+// aeroplane's own ends the search.
+enum class SignalSource {
+    // A name the aeroplane published itself, or one the person gave us in
+    // signals.ini or the settings. Believed at once: the name existing is the
+    // proof that something writes it.
+    Aircraft,
+    // What X-Plane itself draws for a light - a brightness the simulator
+    // computes every frame, flash cycle included. Believed at once, "dark"
+    // included, because no add-on can leave it unwritten. What it cannot tell
+    // us is whether an add-on draws a light of its own somewhere else, which is
+    // why the aeroplane's own name beats it.
+    Rendered,
+    // X-Plane's own switch or system dataref. Exists whatever is loaded, so
+    // finding it proves nothing: provisional until seen lit or seen to move.
+    Stock,
+};
+
 // One row of the Triggers tab, and the thing a report has to contain for an
 // aeroplane nobody has tested: what we bound to, where it came from, what it
 // reads now and whether it has ever moved.
@@ -45,7 +70,7 @@ struct SignalReport {
     const char* id = "";        // beacon, strobe - stable, for the log
     const char* title = "";     // Маяк, Стробы - for the panel
     std::string dataref;        // what we are reading, empty when nothing was found
-    bool fromAircraft = false;  // published by this aeroplane, not by X-Plane
+    SignalSource source = SignalSource::Stock;  // meaningful only when bound
     bool bound = false;
     bool everMoved = false;
     double value = 0.0;
@@ -143,11 +168,12 @@ private:
         // blind, which is how a cold and dark cabin started boarding itself.
         // A name may pick its own element: "sim/.../battery_on[1]".
         int index = 0;
-        bool fromAircraft = false;
-        // A stock dataref exists whatever is loaded, so finding one proves
-        // nothing. It counts as an answer only once it has been seen lit or seen
-        // to move.
-        bool provisional = false;
+        SignalSource source = SignalSource::Stock;
+        // A lamp that flashes, read through what X-Plane draws: the brightness
+        // follows the flash, so between two flashes a beacon that is switched on
+        // reads zero. Read as it comes, that is a beacon going out once a second
+        // - and "beacon off" is what opens the doors on the stand.
+        bool flashes = false;
         int autoPos = -1;  // seat belt three-position switch, or -1
         AutoRule rule = AutoRule::None;
 
@@ -155,8 +181,16 @@ private:
         mutable double lastValue = 0.0;
         mutable bool everMoved = false;
         mutable bool everMeaningful = false;
+        // When a flashing lamp was last seen lit, on lightClock_.
+        mutable double lastLitAt = -1e9;
 
         bool bound() const { return ref != nullptr; }
+        // The aeroplane's own name: nothing better exists, stop looking.
+        bool fromAircraft() const { return source == SignalSource::Aircraft; }
+        // A stock dataref exists whatever is loaded, so finding one proves
+        // nothing. It counts as an answer only once it has been seen lit or seen
+        // to move. What the sim draws is not provisional: see SignalSource.
+        bool provisional() const { return source == SignalSource::Stock; }
     };
 
     Binding& slot(Signal s) { return bindings_[static_cast<int>(s)]; }
@@ -175,6 +209,11 @@ private:
     std::string icao_;
 
     Binding bindings_[static_cast<int>(Signal::Count)];
+
+    // What a flashing lamp's hold is measured on: wall seconds, advanced by
+    // read() and only while the sim is not frozen. See read().
+    mutable double lightClock_ = 0.0;
+    mutable double lastWall_ = -1.0;
 
     void* paused_ = nullptr;
     void* replay_ = nullptr;

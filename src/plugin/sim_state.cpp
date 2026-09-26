@@ -1,6 +1,7 @@
 #include "plugin/sim_state.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -16,6 +17,12 @@ namespace xa {
 namespace {
 
 XPLMDataRef find(const char* name) { return XPLMFindDataRef(name); }
+
+double wallSeconds() {
+    using clock = std::chrono::steady_clock;
+    static const clock::time_point start = clock::now();
+    return std::chrono::duration<double>(clock::now() - start).count();
+}
 
 int readInt(void* ref, int fallback) {
     return ref == nullptr ? fallback : XPLMGetDatai(static_cast<XPLMDataRef>(ref));
@@ -162,19 +169,77 @@ const Candidate kAircraftCandidates[] = {
     {Signal::RouteDistance, "laminar/B738/FMS/dist_dest", 0.0, false, kNoRule, -1},
 };
 
+// What X-Plane DRAWS for a light, as opposed to where a switch sits. Payware
+// that runs its own lights often never touches X-Plane's switches, so the
+// switch reads "off" under a light that is plainly burning; the brightness the
+// sim computed for the light it draws is read-only and written every frame, by
+// the sim, whatever is loaded. The idea comes from Air Virtua's tracker, where
+// it was paid for with pilots' complaints.
+//
+// All five are arrays - float[1] for nav and taxi, float[16] for landing,
+// float[4] for beacon and strobe - so the element is always named; asked for a
+// scalar, an array answers zero for ever. Element 0 is the light Plane-Maker
+// makes by default and the one X-Plane's own switch drives ("this affects the
+// first landing light").
+//
+// Searched after the aeroplane's own names and before the stock switches, and
+// NOT provisional: see SignalSource. Because these always resolve, the stock
+// switches for the same five lights below are no longer reached in practice.
+struct RenderedCandidate {
+    Signal signal;
+    const char* name;
+    bool flashes;
+};
+
+// A fraction, not a switch: 0 is dark and 1 is full brightness, and a lamp that
+// is on is not always at 1 - dimmed, or on a bus that is sagging in the sim's
+// own electrical model. Five per cent is a lamp nobody would call lit, well
+// clear of the float noise at zero and of the tail of a lamp fading out, and
+// far below any lamp that is actually on.
+constexpr double kRenderedOn = 0.05;
+
+const RenderedCandidate kRenderedCandidates[] = {
+    // Both of these follow the flash cycle - "use override_beacons_and_strobes"
+    // is what DataRefs.txt says about writing them - so they are read with a
+    // hold. See kFlashHoldSeconds.
+    {Signal::Beacon, "sim/flightmodel2/lights/beacon_brightness_ratio[0]", true},
+    {Signal::Strobe, "sim/flightmodel2/lights/strobe_brightness_ratio[0]", true},
+    {Signal::NavLights, "sim/flightmodel2/lights/nav_lights_brightness_ratio[0]", false},
+    {Signal::LandingLight, "sim/flightmodel2/lights/landing_lights_brightness_ratio[0]", false},
+    {Signal::TaxiLight, "sim/flightmodel2/lights/taxi_lights_brightness_ratio[0]", false},
+    // No logo: X-Plane has no logo light of its own. It lives somewhere in
+    // generic_lights_brightness_ratio[128], at an index every aeroplane picks
+    // for itself, and a guessed index is a guessed answer.
+};
+
+// How long a flashing lamp is still counted as lit after its last flash. An
+// anti-collision light flashes 40 to 100 times a minute (FAR 25.1401), so the
+// slowest legal one is dark for up to a second and a half between flashes;
+// three seconds spans two of those. The cost is that switching the beacon off
+// is seen three seconds late, which nothing in the cabin can hear.
+constexpr double kFlashHoldSeconds = 3.0;
+
 // What X-Plane publishes whatever is loaded. Kept apart from the list above on
 // purpose, and marked provisional when bound: these names ALWAYS resolve, so
 // finding one proves nothing about whether anything drives it.
 const Candidate kStockCandidates[] = {
+    // Behind the rendered brightness above, which always resolves, so these five
+    // are only reached on a simulator that lacks it.
     {Signal::Beacon, "sim/cockpit2/switches/beacon_on", 1.0, false, kNoRule, -1},
     {Signal::NavLights, "sim/cockpit2/switches/navigation_lights_on", 1.0, false, kNoRule, -1},
     {Signal::Strobe, "sim/cockpit2/switches/strobe_lights_on", 1.0, false, kNoRule, -1},
     {Signal::LandingLight, "sim/cockpit2/switches/landing_lights_on", 1.0, false, kNoRule, -1},
     {Signal::TaxiLight, "sim/cockpit2/switches/taxi_light_on", 1.0, false, kNoRule, -1},
-    // int[8], one per battery, and the element has to be named: read as a scalar
-    // this answered zero on every aeroplane in the simulator, never moved, and
-    // so counted as "this aeroplane does not publish a battery" for ever.
-    {Signal::Battery, "sim/cockpit2/electrical/battery_on[0]", 1.0, false, kNoRule, -1},
+    // No battery, on purpose. X-Plane's sim/cockpit2/electrical/battery_on[0]
+    // was read here until September 2026, and on a cold aeroplane it answers
+    // at random: 1 on a ToLiss A320, a King Air 350 and a LevelUp 737 that
+    // nobody had touched, 0 on Laminar's own 737 - the same airframe as the
+    // LevelUp, with the same datarefs of its own. X-Plane's electrical model
+    // does not know what an add-on did with its battery. And aircraftPowered()
+    // is an OR, so on the LevelUp one stock "on" outvoted four of the
+    // aeroplane's own "off" and boarding was announced in a dark cabin. An
+    // aeroplane that publishes its own battery is in the list above; for every
+    // other one "battery: not known" is simply the truth.
     {Signal::Parkbrake, "sim/flightmodel/controls/parkbrake", 0.5, false, kNoRule, -1},
     // Seat belt has two stock sources and a rule of its own; see seatbeltTri().
     {Signal::Seatbelt, kSeatbeltAnnunciator, 1.0, false, kNoRule, -1},
@@ -272,14 +337,14 @@ void SimState::bind(const std::string& seatbeltOverride) {
 bool SimState::bindSignal(Signal signal, const std::string& override, bool announce) {
     Binding& b = slot(signal);
     const std::string was = b.name;
-    const bool wasFromAircraft = b.fromAircraft;
+    const SignalSource wasSource = b.source;
 
     Binding fresh;
 
     // 1. What the user asked for by hand, and what signals.ini says for this
     //    aeroplane. Both are the person telling us the answer; they win.
     const auto tryName = [&](const char* name, double on, bool atMost, AutoRuleTag rule,
-                             int autoPos, bool fromAircraft) {
+                             int autoPos, SignalSource source, bool flashes) {
         if (fresh.bound()) {
             return;
         }
@@ -301,12 +366,12 @@ bool SimState::bindSignal(Signal signal, const std::string& override, bool annou
         fresh.atMost = atMost;
         fresh.rule = static_cast<AutoRule>(rule);
         fresh.autoPos = autoPos;
-        fresh.fromAircraft = fromAircraft;
-        fresh.provisional = !fromAircraft;
+        fresh.source = source;
+        fresh.flashes = flashes;
     };
 
     if (!override.empty()) {
-        tryName(override.c_str(), 1.0, false, kNoRule, -1, true);
+        tryName(override.c_str(), 1.0, false, kNoRule, -1, SignalSource::Aircraft, false);
         if (!fresh.bound() && announce) {
             log("datarefs: this aircraft has no '%s' - falling back to the known ones",
                 override.c_str());
@@ -319,7 +384,8 @@ bool SimState::bindSignal(Signal signal, const std::string& override, bool annou
         if (signalById(entry.signal) != signal) {
             continue;
         }
-        tryName(entry.dataref.c_str(), entry.on, entry.atMost, kNoRule, -1, true);
+        tryName(entry.dataref.c_str(), entry.on, entry.atMost, kNoRule, -1,
+                SignalSource::Aircraft, false);
         if (fresh.bound() && announce) {
             log("datarefs: %s взят из signals.ini - %s", kNames[static_cast<int>(signal)].id,
                 entry.dataref.c_str());
@@ -332,22 +398,33 @@ bool SimState::bindSignal(Signal signal, const std::string& override, bool annou
             break;
         }
         if (c.signal == signal) {
-            tryName(c.name, c.on, c.atMost, c.rule, c.autoPos, true);
+            tryName(c.name, c.on, c.atMost, c.rule, c.autoPos, SignalSource::Aircraft, false);
         }
     }
 
-    // 3. Nothing of the aeroplane's own: fall back to what X-Plane publishes,
-    //    and remember that this proves nothing until it is seen to move.
+    // 3. Nothing of the aeroplane's own: what X-Plane draws for the light, which
+    //    is an answer from the first frame.
+    for (const RenderedCandidate& c : kRenderedCandidates) {
+        if (fresh.bound()) {
+            break;
+        }
+        if (c.signal == signal) {
+            tryName(c.name, kRenderedOn, false, kNoRule, -1, SignalSource::Rendered, c.flashes);
+        }
+    }
+
+    // 4. Then what X-Plane publishes, and remember that this proves nothing
+    //    until it is seen to move.
     for (const Candidate& c : kStockCandidates) {
         if (fresh.bound()) {
             break;
         }
         if (c.signal == signal) {
-            tryName(c.name, c.on, c.atMost, c.rule, c.autoPos, false);
+            tryName(c.name, c.on, c.atMost, c.rule, c.autoPos, SignalSource::Stock, false);
         }
     }
 
-    const bool changed = fresh.name != was || fresh.fromAircraft != wasFromAircraft;
+    const bool changed = fresh.name != was || fresh.source != wasSource;
     if (changed) {
         b = fresh;
     }
@@ -356,8 +433,11 @@ bool SimState::bindSignal(Signal signal, const std::string& override, bool annou
         if (!b.bound()) {
             log("triggers: %s - этот борт ничего такого не публикует", kNames[index].id);
         } else {
-            log("triggers: %s = %s%s", kNames[index].id, b.name.c_str(),
-                b.fromAircraft ? " (датареф борта)" : " (штатный - жду, пока он шевельнётся)");
+            const char* const how =
+                b.source == SignalSource::Aircraft   ? " (датареф борта)"
+                : b.source == SignalSource::Rendered ? " (рисует X-Plane - верю сразу)"
+                                                     : " (штатный - жду, пока он шевельнётся)";
+            log("triggers: %s = %s%s", kNames[index].id, b.name.c_str(), how);
         }
     }
     return changed;
@@ -366,7 +446,7 @@ bool SimState::bindSignal(Signal signal, const std::string& override, bool annou
 bool SimState::anySignalPending() const {
     for (int i = 0; i < static_cast<int>(Signal::Count); ++i) {
         const Binding& b = bindings_[i];
-        if (!b.bound() || !b.fromAircraft) {
+        if (!b.bound() || !b.fromAircraft()) {
             return true;
         }
     }
@@ -378,8 +458,10 @@ bool SimState::retryUnbound(const std::string& seatbeltOverride) {
     for (int i = 0; i < static_cast<int>(Signal::Count); ++i) {
         const Binding& b = bindings_[i];
         // Already reading something the aeroplane published: nothing better
-        // exists, stop asking for this one.
-        if (b.bound() && b.fromAircraft) {
+        // exists, stop asking for this one. What the sim draws is not that -
+        // an aeroplane whose plugin registers its own name late must still get
+        // it.
+        if (b.bound() && b.fromAircraft()) {
             continue;
         }
         const Signal signal = static_cast<Signal>(i);
@@ -393,7 +475,7 @@ bool SimState::retryUnbound(const std::string& seatbeltOverride) {
 
 bool SimState::seatbeltIsFallback() const {
     const Binding& b = slot(Signal::Seatbelt);
-    return !b.bound() || !b.fromAircraft;
+    return !b.bound() || !b.fromAircraft();
 }
 
 std::string SimState::seatbeltDataref() const {
@@ -444,6 +526,9 @@ double SimState::sample(const Binding& b) const {
     }
 
     const bool on = b.atMost ? value <= b.on + 0.001 : value >= b.on - 0.001;
+    if (on) {
+        b.lastLitAt = lightClock_;
+    }
     if (!b.haveLast) {
         b.haveLast = true;
         b.lastValue = value;
@@ -467,7 +552,7 @@ core::Tri SimState::triOf(Signal signal) const {
         return core::Tri::Unknown;
     }
     const double value = sample(b);
-    if (b.provisional && !b.everMeaningful) {
+    if (b.provisional() && !b.everMeaningful) {
         // A stock dataref nobody has been seen to drive. Reporting "off" here is
         // the mistake this whole file is arranged around: it reads as a switch
         // that is off rather than as a question we cannot ask, and a phase gated
@@ -475,6 +560,11 @@ core::Tri SimState::triOf(Signal signal) const {
         return core::Tri::Unknown;
     }
     const bool on = b.atMost ? value <= b.on + 0.001 : value >= b.on - 0.001;
+    // Dark between two flashes is not off. sample() has just stamped the frame
+    // if the lamp is lit in it, so this only ever extends a lamp that was.
+    if (!on && b.flashes && lightClock_ - b.lastLitAt <= kFlashHoldSeconds) {
+        return core::Tri::On;
+    }
     return on ? core::Tri::On : core::Tri::Off;
 }
 
@@ -484,7 +574,7 @@ core::Tri SimState::seatbeltTri() const {
     // Nothing of the aeroplane's own was found. X-Plane's annunciator is the
     // better answer where it is driven at all, and the stock switch is what an
     // aeroplane without its own systems moves; either one saying "on" is on.
-    if (!b.bound() || !b.fromAircraft) {
+    if (!b.bound() || !b.fromAircraft()) {
         const bool anySource = seatbeltSign_ != nullptr || seatbeltStock2_ != nullptr ||
                                seatbeltStock1_ != nullptr;
         if (!anySource) {
@@ -595,7 +685,7 @@ std::vector<SignalReport> SimState::signalReports() const {
         row.id = kNames[i].id;
         row.title = kNames[i].title;
         row.bound = b.bound();
-        row.fromAircraft = b.fromAircraft;
+        row.source = b.source;
         row.dataref = b.name;
         if (b.bound()) {
             row.value = sample(b);
@@ -604,7 +694,7 @@ std::vector<SignalReport> SimState::signalReports() const {
 
         if (signal == Signal::Seatbelt) {
             row.reading = seatbeltTri();
-            if (!b.bound() || !b.fromAircraft) {
+            if (!b.bound() || !b.fromAircraft()) {
                 row.dataref = seatbeltDataref();
                 row.note = signSeenLit_ ? "штатное табло, оно хотя бы раз загоралось"
                                         : "штатное табло, ни разу не загоралось - читаю как «не знаю»";
@@ -617,8 +707,14 @@ std::vector<SignalReport> SimState::signalReports() const {
                                  : "борт не публикует - беру из штатного плана полёта";
         } else {
             row.reading = triOf(signal);
-            if (b.bound() && !b.fromAircraft && !b.everMeaningful) {
+            if (b.bound() && b.provisional() && !b.everMeaningful) {
                 row.note = "штатный датареф, ни разу не двигался - считаю, что борт его не пишет";
+            } else if (b.bound() && b.flashes) {
+                char held[96];
+                std::snprintf(held, sizeof(held),
+                              "мигает: после вспышки считаю включённым ещё %.0f с",
+                              kFlashHoldSeconds);
+                row.note = held;
             } else if (b.bound() && b.atMost) {
                 row.note = "перевёрнутый: включено - это " + formatNumber(b.on) + " и ниже";
             }
@@ -635,7 +731,13 @@ std::vector<std::string> SimState::signalLogLines() const {
         line += row.id;
         line += " = ";
         line += row.dataref.empty() ? std::string("(нет)") : row.dataref;
-        line += row.bound ? (row.fromAircraft ? " [борт]" : " [штатный]") : " [не найден]";
+        if (!row.bound) {
+            line += " [не найден]";
+        } else {
+            line += row.source == SignalSource::Aircraft   ? " [борт]"
+                    : row.source == SignalSource::Rendered ? " [рисует сим]"
+                                                           : " [штатный]";
+        }
         if (row.bound) {
             line += " знач " + formatNumber(row.value);
             line += row.everMoved ? ", двигался" : ", не двигался";
@@ -662,6 +764,22 @@ core::Snapshot SimState::read() const {
     s.altFt = readFloat(altitude_, 0.0f);
     s.vsFpm = readFloat(verticalSpeed_, 0.0f);
     s.gNormal = readFloat(gNormal_, 1.0f);
+
+    // The clock a flashing lamp's hold runs on, and it stops while the sim is
+    // frozen - because the state machine stops too. Measured on the wall
+    // instead, a hold would run out during a long pause, and the first tick
+    // after it could catch a beacon that is switched on between two flashes
+    // and read it as off: the doors open on the stand with the beacon lit.
+    const double wall = wallSeconds();
+    if (lastWall_ >= 0.0 && !s.frozen()) {
+        const double dt = wall - lastWall_;
+        // A frame that took seconds is a loading screen, not time the lamp
+        // was watched in.
+        if (dt > 0.0 && dt < 5.0) {
+            lightClock_ += dt;
+        }
+    }
+    lastWall_ = wall;
 
     s.beacon = triOf(Signal::Beacon);
     s.navLights = triOf(Signal::NavLights);

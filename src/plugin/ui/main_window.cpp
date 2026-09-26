@@ -186,6 +186,8 @@ std::string translatedValue(const std::string& text) {
     }
     if (out.rfind("no battery", 0) == 0) {
         out.replace(0, 10, "нет батареи");
+    } else if (out.rfind("no nav", 0) == 0) {
+        out.replace(0, 6, "нет nav");
     }
     for (const auto& unit : kUnits) {
         const std::size_t length = std::strlen(unit.first);
@@ -903,9 +905,10 @@ void MainWindow::drawTriggersTab() {
     section("Что этот борт даёт читать");
     ImGui::PushTextWrapPos(0.0f);
     small("Плагин не управляет самолётом — он на него смотрит. Здесь видно, чем именно: "
-          "«датареф борта» значит, что самолёт назвал переключатель сам; «штатный» — что своего "
-          "у него нет и читается общий датареф X-Plane, который на серьёзных аддонах часто никто "
-          "не пишет. Строка «не знаю» — не поломка: это честный ответ, и условия, которые на неё "
+          "«датареф борта» значит, что самолёт назвал переключатель сам; «рисует X-Plane» — что "
+          "своего нет и читается яркость огня, которую считает сам симулятор; «штатный» — общий "
+          "датареф X-Plane, который на серьёзных аддонах часто никто не пишет. Строка «не знаю» — "
+          "не поломка: это честный ответ, и условия, которые на неё "
           "опираются, плагин обходит другими путями, а не ждёт вечно.");
     ImGui::PopTextWrapPos();
     ImGui::Dummy(ImVec2(0.0f, 4.0f));
@@ -948,8 +951,10 @@ void MainWindow::drawTriggersTab() {
             // what it is. A dim second line rather than another column: this is
             // read once per aeroplane, the four columns above are read at a
             // glance.
-            std::string origin = row.bound ? (row.fromAircraft ? "датареф борта" : "штатный X-Plane")
-                                           : "не найден";
+            std::string origin = !row.bound ? "не найден"
+                                 : row.source == SignalSource::Aircraft ? "датареф борта"
+                                 : row.source == SignalSource::Rendered ? "рисует X-Plane"
+                                                                        : "штатный X-Plane";
             if (!row.note.empty()) {
                 origin += " — " + row.note;
             }

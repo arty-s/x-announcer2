@@ -1,0 +1,45 @@
+# A cold and dark aeroplane that nobody has touched: its lights read off and
+# its battery is not known at all - which, now that X-Plane's generic battery
+# is no longer read, is how almost every aeroplane loads.
+#
+# Caught live in September 2026 on four aeroplanes at once. The generic battery,
+# sim/cockpit2/electrical/battery_on[0], read 1 on a cold ToLiss A320, a King
+# Air 350 and a LevelUp 737, and 0 on Laminar's own 737 - the only one of the
+# four that stayed quiet. The LevelUp was the telling one: its own nav,
+# landing, taxi and logo all said "off", the stock battery said "on", and "any
+# one of the four is awake" took the battery's word. Boarding was announced in
+# a cockpit nobody had powered.
+#
+# What the bench can check is the consequence, not the binding. It has no
+# dataref layer: the battery comes in here as unknown and the lights as off,
+# already decided. Whether the plugin really binds that way on a given
+# aeroplane is only visible in the simulator, on the Triggers tab.
+
+config auto_boarding=1 boarding_music=0
+library BoardingStarted BoardingWelcome
+
+set hour=12 on_ground=1 engines=0 gs_kt=0
+set battery=unknown nav=0 taxi=0 logo=0
+set beacon=0 strobe=0 landing=0 parkbrake=1 seatbelt=unknown
+
+# ---- while the aeroplane's own datarefs are still being looked for ---------
+advance 20
+expect phase PREFLIGHT
+expect not-played BoardingStarted
+
+# ---- and after the search has given up ------------------------------------
+# The wave-through is for an aeroplane that publishes none of the four. This
+# one publishes three, and all three say off: an unknown battery next to them
+# is not a reason to open the cabin.
+advance 150
+expect phase PREFLIGHT
+expect not-played BoardingStarted
+expect not-played BoardingWelcome
+
+# ---- the crew wakes the aeroplane up --------------------------------------
+# The positive control: without it, a machine that never boards at all would
+# pass everything above.
+set nav=1
+advance 10
+expect phase BOARDING
+expect played BoardingStarted
